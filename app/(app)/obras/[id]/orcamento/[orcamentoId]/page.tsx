@@ -15,6 +15,7 @@ import { formatDateTime } from "@/lib/format";
 
 import { OrcamentoEditor } from "./_components/orcamento-editor";
 import { OrcamentoActions } from "./_components/orcamento-actions";
+import { ExportButtons } from "./_components/export-buttons";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +86,8 @@ export default async function OrcamentoEditorPage({
               Última alteração {formatDateTime(orcamento.updatedAt)}
             </p>
           </div>
-          <div className="flex items-start gap-2">
+          <div className="flex flex-wrap items-start justify-end gap-2">
+            <ExportButtons orcamentoId={orcamento.id} />
             <Button asChild variant="ghost">
               <Link href={`/obras/${obra.id}`}>Fechar</Link>
             </Button>

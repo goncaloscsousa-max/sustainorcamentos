@@ -158,10 +158,72 @@ Acompanhamento do progresso fase a fase conforme [SPEC.md §11](./SPEC.md).
 
 ---
 
-## Fase 4 — Export *(pendente)*
+## Fase 4 — Export ✅ *(código concluído a 2026-04-21)*
 
-- [ ] PDF com `@react-pdf/renderer` (template Sustain)
-- [ ] Excel com `exceljs` (layout actual)
+### Feito
+
+- [x] Dependências instaladas: `@react-pdf/renderer`, `exceljs`, `lucide-react`
+- [x] **Data loader partilhado** (`lib/export/load-orcamento.ts`):
+      carrega `orcamento + obra + cliente + linhas` e agrupa linhas por
+      categoria (mantendo a `ordem` dentro de cada categoria). Junta dados
+      fixos da empresa + `NIF_SUSTAIN` do `.env` (cai para `{{NIF_SUSTAIN}}`
+      se vazio, conforme SPEC §2).
+- [x] **PDF** (`lib/export/pdf.tsx`): template A4 em `@react-pdf/renderer`
+      que segue SPEC §9 — cabeçalho "SUSTAIN REMODELAÇÕES" + slogan + linha
+      de contactos, bloco ORÇAMENTO com cliente/ref/obra/data/morada/
+      validade/NIF, tabela `# / Descrição / Un / Qtd / Preço unit / Total`
+      agrupada por categoria numerada em maiúsculas, totais à direita
+      (subtotal, IVA, TOTAL destacado com fundo `#2c3e50`), Condições
+      Gerais (6 bullets padrão), assinaturas, rodapé fixo com morada + NIF,
+      paginação `n / N`. Paleta do SPEC respeitada.
+- [x] **Excel** (`lib/export/xlsx.ts`): workbook editável com `exceljs`,
+      layout equivalente ao PDF, valores monetários guardados como float
+      em EUR com formato `pt-PT`, TOTAL destacado, condições e observações
+      em bloco. Página A4 portrait, fit-to-width.
+- [x] **API routes** protegidas por `auth()` (o proxy não cobre `/api`):
+  - `GET /api/export/pdf/[orcamentoId]` → PDF inline
+    (`Content-Disposition: inline`) com filename `SUS-YYYY-NNN_vN.pdf`.
+  - `GET /api/export/xlsx/[orcamentoId]` → XLSX como download
+    (`attachment`) com filename `SUS-YYYY-NNN_vN.xlsx`.
+  - Ambas `runtime = "nodejs"`, `dynamic = "force-dynamic"`, devolvem 401
+    se não autenticadas e 404 se o orçamento não existir.
+- [x] **Botões no editor** (`_components/export-buttons.tsx`): dois
+      botões `outline` com ícones `FileDown` e `FileSpreadsheet` ao lado
+      das ações "Duplicar versão / Apagar". PDF abre em nova tab; Excel
+      descarrega.
+- [x] `tsc`, `eslint` (incluindo nova regra `react-hooks/immutability`
+      do React 19) e `next build` passam sem erros.
+
+### Decisões
+
+- **Snapshot, não motor**: o Excel não tem fórmulas de soma automática
+  — a fonte da verdade é a app. Quem quiser editar valores no Excel
+  tem de ajustar o total manualmente (ou reimportar — fora de âmbito v1).
+- **Numeração global** das linhas (1…N) calculada sem mutação via
+  `groupOffsets` (evita a regra `react-hooks/immutability` do React 19).
+  Alternativa descartada: `let counter` mutado no render.
+- **Dados da empresa hardcoded** em `load-orcamento.ts` (morada,
+  telefone, email, etc. — só há uma Sustain). Apenas o NIF vem do
+  `.env` porque ainda não foi fornecido. Quando chegar, basta
+  preencher `NIF_SUSTAIN` no `.env` — sem redeploy nem migração.
+- **Auth nas API routes**: proxy exclui `/api` do matcher, por isso
+  cada route chama `await auth()` explicitamente.
+- **Ficheiro `.tsx` para a route do PDF**: a route usa JSX
+  (`<OrcamentoPDF data={data} />`), logo `route.tsx` em vez de `.ts`.
+
+### Pendente para teste manual (antes do OK da Fase 4)
+
+- [ ] Abrir um orçamento com várias categorias e clicar em **PDF** →
+      deve abrir em nova tab com o template Sustain
+- [ ] Confirmar que totais (subtotal / IVA / total) batem com os da UI
+- [ ] Clicar em **Excel** → descarrega `.xlsx`, abre em Excel/Numbers,
+      valores editáveis, formato `€` pt-PT correto
+- [ ] Confirmar que categorias aparecem numeradas (1., 2., …) em
+      maiúsculas, em ambos os exports
+- [ ] Confirmar que o rodapé mostra `NIF: {{NIF_SUSTAIN}}` (placeholder)
+      até o NIF real ser colocado no `.env`
+- [ ] Testar com orçamento vazio (sem linhas) — deve exportar com tabela
+      vazia sem crashar
 
 ---
 
