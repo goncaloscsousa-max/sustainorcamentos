@@ -1,45 +1,84 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import { Badge } from "@/components/ui/badge";
-import { db } from "@/lib/db";
-import { clientes, obras } from "@/lib/db/schema";
+import { Button } from "@/components/ui/button";
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { db } from "@/lib/db";
+import { clientes, obras, orcamentos } from "@/lib/db/schema";
+import {
+  formatCents,
   formatDateTime,
+  formatIsoDate,
   labelForEstadoObra,
+  labelForTipoObra,
 } from "@/lib/format";
 
-import { updateObraAction } from "../actions";
-import { ObraForm } from "../_components/obra-form";
-import { DeleteObraButton } from "./_components/delete-obra-button";
+import { createOrcamentoAction } from "./orcamento/actions";
 
 export const dynamic = "force-dynamic";
 
 type Params = Promise<{ id: string }>;
 
-export default async function EditarObraPage({
+const estadoOrcamentoVariant: Record<
+  string,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
+  rascunho: "secondary",
+  enviado: "default",
+  aprovado: "default",
+  rejeitado: "destructive",
+  substituido: "outline",
+};
+
+const estadoOrcamentoLabel: Record<string, string> = {
+  rascunho: "Rascunho",
+  enviado: "Enviado",
+  aprovado: "Aprovado",
+  rejeitado: "Rejeitado",
+  substituido: "Substituído",
+};
+
+export default async function ObraDashboardPage({
   params,
 }: {
   params: Params;
 }) {
   const { id } = await params;
 
-  const obra = await db.query.obras.findFirst({
-    where: eq(obras.id, id),
-  });
+  const obra = await db.query.obras.findFirst({ where: eq(obras.id, id) });
   if (!obra) notFound();
 
-  const clientesList = await db
-    .select({ id: clientes.id, nome: clientes.nome })
-    .from(clientes)
-    .orderBy(clientes.nome);
+  const cliente = await db.query.clientes.findFirst({
+    where: eq(clientes.id, obra.clienteId),
+  });
 
-  const boundAction = updateObraAction.bind(null, id);
+  const orcamentosList = await db
+    .select()
+    .from(orcamentos)
+    .where(eq(orcamentos.obraId, obra.id))
+    .orderBy(desc(orcamentos.versao));
+
+  const createOrcBound = createOrcamentoAction.bind(null, obra.id);
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-3">
         <Link
           href="/obras"
           className="text-sm text-muted-foreground hover:underline"
@@ -55,28 +94,175 @@ export default async function EditarObraPage({
               <Badge variant="secondary">
                 {labelForEstadoObra(obra.estado)}
               </Badge>
+              <span className="text-xs text-muted-foreground">
+                {labelForTipoObra(obra.tipo)}
+              </span>
             </div>
             <h1 className="text-2xl font-medium tracking-tight">
               {obra.titulo}
             </h1>
-            <p className="text-xs text-muted-foreground">
-              Criada em {formatDateTime(obra.createdAt)} · última alteração{" "}
-              {formatDateTime(obra.updatedAt)}
+            <p className="text-sm text-muted-foreground">
+              {obra.moradaObra}
             </p>
           </div>
-          <DeleteObraButton id={obra.id} referencia={obra.referencia} />
+          <Button asChild variant="secondary">
+            <Link href={`/obras/${obra.id}/editar`}>Editar obra</Link>
+          </Button>
         </div>
       </header>
 
-      <div className="max-w-3xl">
-        <ObraForm
-          action={boundAction}
-          clientes={clientesList}
-          obra={obra}
-          includeEstado
-          submitLabel="Guardar alterações"
-        />
-      </div>
+      <section className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium">Cliente</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-1 text-sm">
+            {cliente ? (
+              <>
+                <Link
+                  href={`/clientes/${cliente.id}`}
+                  className="font-medium hover:underline"
+                >
+                  {cliente.nome}
+                </Link>
+                {cliente.nif ? (
+                  <span className="text-muted-foreground">
+                    NIF: {cliente.nif}
+                  </span>
+                ) : null}
+                {cliente.email ? (
+                  <span className="text-muted-foreground">{cliente.email}</span>
+                ) : null}
+                {cliente.telefone ? (
+                  <span className="text-muted-foreground">
+                    {cliente.telefone}
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <span className="text-muted-foreground">
+                Cliente não encontrado.
+              </span>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium">Datas</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3 text-sm">
+            <div className="flex flex-col">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                Visita
+              </span>
+              <span>{formatIsoDate(obra.dataVisita)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                Início previsto
+              </span>
+              <span>{formatIsoDate(obra.dataInicioPrevista)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                Conclusão prevista
+              </span>
+              <span>{formatIsoDate(obra.dataConclusaoPrevista)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                Criada
+              </span>
+              <span>{formatDateTime(obra.createdAt)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {obra.notas ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium">Notas</CardTitle>
+            <CardDescription className="whitespace-pre-wrap pt-2">
+              {obra.notas}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col">
+            <h2 className="text-lg font-medium">Orçamentos</h2>
+            <p className="text-xs text-muted-foreground">
+              Cada alteração grande cria uma nova versão. Versões anteriores
+              ficam acessíveis.
+            </p>
+          </div>
+          <form action={createOrcBound}>
+            <Button type="submit">
+              {orcamentosList.length === 0
+                ? "Criar primeiro orçamento"
+                : "Nova versão"}
+            </Button>
+          </form>
+        </div>
+
+        {orcamentosList.length === 0 ? (
+          <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
+            Ainda não há orçamentos para esta obra.
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Versão</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Emissão</TableHead>
+                  <TableHead className="text-right">Subtotal</TableHead>
+                  <TableHead className="text-right">Total c/ IVA</TableHead>
+                  <TableHead className="text-right">Margem</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orcamentosList.map((o) => (
+                  <TableRow key={o.id}>
+                    <TableCell className="font-mono text-xs">
+                      <Link
+                        href={`/obras/${obra.id}/orcamento/${o.id}`}
+                        className="hover:underline"
+                      >
+                        v{o.versao}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={estadoOrcamentoVariant[o.estado] ?? "secondary"}
+                      >
+                        {estadoOrcamentoLabel[o.estado] ?? o.estado}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatIsoDate(o.dataEmissao)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {formatCents(o.subtotalCents)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums font-medium">
+                      {formatCents(o.totalCents)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">
+                      {(o.margemTeoricaBps / 100).toFixed(1)} %
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

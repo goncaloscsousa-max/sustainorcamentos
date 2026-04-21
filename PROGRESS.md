@@ -104,12 +104,57 @@ Acompanhamento do progresso fase a fase conforme [SPEC.md §11](./SPEC.md).
 
 ---
 
-## Fase 3 — Orçamento manual *(pendente)*
+## Fase 3 — Orçamento manual ✅ *(código concluído a 2026-04-21)*
 
-- [ ] Editor com grelha editável (TanStack Table)
-- [ ] Adicionar linhas da tabela de preços (fuzzy match)
-- [ ] Cálculo de totais em tempo real
-- [ ] Guardar versões
+### Feito
+
+- [x] **Dashboard de obra** (`/obras/[id]`): mostra dados do cliente, datas,
+      notas e lista de orçamentos com subtotal, total e margem por versão.
+      Edição da obra movida para `/obras/[id]/editar`.
+- [x] **Criar orçamento**: server action `createOrcamentoAction` gera nova
+      versão (v1, v2, ...) e redireciona para o editor.
+- [x] **Editor de orçamento** (`/obras/[id]/orcamento/[orcamentoId]`):
+  - Metadata editável: estado, data emissão, validade, IVA%,
+    condições de pagamento, observações.
+  - Grelha editável com colunas: categoria, descrição, unidade,
+    quantidade, € cliente, € custo interno, total €, origem
+    (tabela/IA/manual), mover ↑↓, apagar.
+  - Autocomplete para adicionar linhas da tabela de preços
+    (pesquisa por código ou descrição, debounced 200ms, só itens ativos).
+  - Botão "Linha manual" para adicionar linha vazia.
+  - Totais em tempo real: subtotal, custo interno, IVA, margem teórica %,
+    total c/ IVA (sticky no fundo do ecrã).
+  - Guardar: server action valida com Zod, recalcula totais em cêntimos
+    no servidor (dupla defesa), persiste em transação.
+- [x] **Versões**: botão "Duplicar versão" copia todas as linhas para v+1,
+      estado `rascunho`. Ação "Apagar" apaga só aquela versão.
+- [x] Schema Zod `saveOrcamentoSchema` para header + linhas.
+- [x] `tsc`, `eslint`, `next build` limpos.
+
+### Decisões
+
+- **Sem TanStack Table** apesar do SPEC o mencionar. A grelha é totalmente
+  editável e não precisa de sort/filter/pagination (features principais do
+  TanStack Table). Uma `<table>` com inputs controlados e estado React é mais
+  simples e mais rápida de iterar. A dependência fica instalada para Fase 6
+  se quisermos adicionar drag-to-reorder ou selection.
+- Totais calculados no cliente (render) e recalculados no servidor (save) —
+  fonte da verdade é o servidor. O cliente calcula só para feedback visual.
+- Gravar substitui todas as linhas do orçamento (delete + insert em
+  transação). Evita lógica complexa de diff e mantém `ordem` alinhada com
+  a posição atual na UI.
+- "Nova versão" duplica tudo (metadata + linhas). A versão anterior fica
+  inalterada — serve de histórico.
+
+### Pendente para teste manual (antes do OK da Fase 3)
+
+- [ ] Abrir uma obra e criar o primeiro orçamento (v1)
+- [ ] Adicionar 2-3 linhas da tabela de preços pelo autocomplete
+- [ ] Adicionar 1 linha manual, editar quantidade e preço, ver totais
+- [ ] Confirmar que subtotal + IVA + total batem certo
+- [ ] Guardar, recarregar a página, verificar que tudo persiste
+- [ ] Duplicar versão → v2 aparece como rascunho com as mesmas linhas
+- [ ] Apagar v2 (a v1 mantém-se)
 
 ---
 
