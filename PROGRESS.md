@@ -55,11 +55,52 @@ Acompanhamento do progresso fase a fase conforme [SPEC.md §11](./SPEC.md).
 
 ---
 
-## Fase 2 — CRUD base *(pendente)*
+## Fase 2 — CRUD base ✅ *(código concluído a 2026-04-21)*
 
-- [ ] Clientes (lista, criar, editar, eliminar)
-- [ ] Obras (lista, criar, detalhe)
-- [ ] Tabela de preços (lista, importar CSV, editar)
+### Feito
+
+- [x] Componentes shadcn adicionais: `table`, `select`, `textarea`, `badge`,
+      `dropdown-menu`, `popover`, `separator`, `dialog`, `alert-dialog`
+- [x] Helpers de formatação pt-PT (`lib/format.ts`): `formatCents`, parsing de
+      strings euro PT, datas ISO, enums de tipo/estado de obra, unidades,
+      categorias
+- [x] Schemas Zod partilhados (`lib/validation/shared.ts`): `optionalText`,
+      `moneyCents`, `moneyCentsOptional`, `percentageBps`, `emptyToNull`
+- [x] Tipo `ActionState` e helper `zodIssuesToFieldErrors` para server actions
+      com `useActionState`
+- [x] **Clientes**: lista, criar, editar, apagar — com validação, toasts,
+      confirmação AlertDialog. Apagar falha com mensagem clara se cliente
+      tiver obras (FK restrict).
+- [x] **Obras**: lista com filtros (estado + cliente), criar com geração
+      automática de referência no formato `SUS-YYYY-NNN`, detalhe com edição
+      completa (inclui alteração de estado), badges de estado, apagar com
+      cascata a orçamentos/riscos/ficheiros
+- [x] **Tabela de preços**: lista com pesquisa (código ou descrição) e filtro
+      por categoria, criar, editar (inclui toggle ativo/inativo), apagar
+- [x] **Importação CSV** da tabela de preços: parser client-side,
+      pré-visualização linha a linha com validação Zod, upsert por código
+      (item existente é atualizado), feedback ao utilizador
+- [x] `tsc --noEmit`, `eslint` e `next build` passam sem erros
+
+### Decisões
+
+- Guardamos preços em cêntimos (INTEGER) e aceitamos input em formato PT
+  (`1.234,56`) ou US (`1234.56`).
+- Referência de obra é gerada contando obras do ano em curso com prefixo
+  `SUS-YYYY-`. Race condition teórica aceite para single-tenant local.
+- CSV: upsert por `codigo` — re-importar o mesmo ficheiro atualiza em vez de
+  duplicar. Cabeçalhos normalizados (aceita acentos e variações).
+
+### Pendente para teste manual do utilizador (antes do OK da Fase 2)
+
+- [ ] Criar um cliente e ver na lista
+- [ ] Editar esse cliente e apagar (verificar toast e redirect)
+- [ ] Criar uma obra ligada ao cliente, confirmar referência `SUS-2026-001`
+- [ ] Filtrar obras por estado e por cliente
+- [ ] Editar estado da obra (ex.: `orcamentado` → `adjudicado`)
+- [ ] Criar item na tabela de preços com preço `150,00` e confirmar formatação
+- [ ] Importar CSV: testar com ficheiro válido e com erros deliberados
+- [ ] Apagar cliente com obras associadas (deve bloquear com mensagem clara)
 
 ---
 
