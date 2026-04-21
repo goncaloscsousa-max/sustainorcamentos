@@ -1,36 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sustain Orçamentos
 
-## Getting Started
+Plataforma web de apoio à orçamentação da **Sustain Remodelações**.
+Corre 100 % localmente. Internet apenas para a API da Anthropic (Fase 5).
 
-First, run the development server:
+- **Briefing funcional e técnico:** ver [SPEC.md](./SPEC.md).
+- **Progresso por fase:** ver [PROGRESS.md](./PROGRESS.md).
+- **Decisões de arquitetura:** ver [docs/adr/](./docs/adr/).
+
+---
+
+## Stack
+
+| Camada | Tecnologia |
+|---|---|
+| Frontend | Next.js 16 (App Router) · React 19 · TypeScript 5 (strict) |
+| UI | Tailwind CSS v4 · shadcn/ui (Radix) |
+| Base de dados | SQLite (ficheiro local) · Drizzle ORM |
+| Auth | Auth.js v5 · Credentials provider · JWT |
+| Storage | Filesystem local (`data/uploads/`) |
+| IA | Claude Sonnet 4.6 via API oficial Anthropic *(Fase 5)* |
+
+---
+
+## Arranque local (primeira vez)
+
+Pré-requisitos: **Node.js ≥ 20** e **npm**.
 
 ```bash
+# 1. Instalar dependências
+npm install
+
+# 2. Criar .env a partir do exemplo
+cp .env.example .env
+
+# 3. Gerar AUTH_SECRET e colar no .env
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+
+# 4. Preencher no .env:
+#    - AUTH_SECRET (gerado acima)
+#    - ADMIN_PASSWORD (palavra-passe inicial do utilizador admin)
+
+# 5. Criar base de dados + correr migrations
+npm run db:migrate
+
+# 6. Criar utilizador admin inicial
+npm run db:seed
+
+# 7. Iniciar dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+A app arranca em <http://localhost:3000>. Entra com o email e a palavra-passe do `.env`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Comandos úteis
 
-## Learn More
+| Comando | Descrição |
+|---|---|
+| `npm run dev` | Dev server com Turbopack |
+| `npm run build` | Build de produção |
+| `npm run start` | Servir build de produção |
+| `npm run lint` | ESLint |
+| `npm run db:generate` | Gera nova migration a partir do schema |
+| `npm run db:migrate` | Aplica migrations à DB |
+| `npm run db:seed` | Cria utilizador admin inicial |
+| `npm run db:studio` | Abre Drizzle Studio (explorador visual) |
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Estrutura
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+app/
+  (auth)/login/       # login (público)
+  (app)/              # app autenticada
+  api/auth/           # Auth.js route handlers
+components/
+  ui/                 # shadcn components
+  app-header.tsx      # header da app
+lib/
+  db/
+    schema.ts         # schema Drizzle
+    migrations/       # SQL gerado por drizzle-kit
+    migrate.ts        # script que aplica migrations
+    seed.ts           # script que cria admin
+    index.ts          # cliente Drizzle
+  utils.ts            # helpers (cn)
+auth.ts               # config Auth.js (Node runtime)
+auth.config.ts        # config Auth.js edge-safe (para proxy)
+proxy.ts              # Next.js proxy (redireciona para /login)
+drizzle.config.ts
+data/                 # SQLite DB + uploads (gitignored)
+docs/adr/             # Architecture Decision Records
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Convenções
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Dinheiro:** sempre em `INTEGER` cêntimos (sufixo `_cents`).
+- **Percentagens:** em basis points × 100 (ex.: 2300 = 23,00 %).
+- **IDs:** UUID v4, gerados em aplicação.
+- **Datas** (só data, sem hora) guardadas como `TEXT` ISO-8601 (`YYYY-MM-DD`).
+- **Timestamps** guardados como `INTEGER` milissegundos.
