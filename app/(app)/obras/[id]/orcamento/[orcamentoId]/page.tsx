@@ -1,21 +1,25 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import {
   clientes,
+  ficheirosObra,
   linhasOrcamento,
   obras,
   orcamentos,
+  riscosIdentificados,
 } from "@/lib/db/schema";
 import { formatDateTime } from "@/lib/format";
 
 import { OrcamentoEditor } from "./_components/orcamento-editor";
 import { OrcamentoActions } from "./_components/orcamento-actions";
 import { ExportButtons } from "./_components/export-buttons";
+import { AnaliseIAButton } from "./_components/analise-ia-button";
+import { RiscosPanel } from "./_components/riscos-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +58,17 @@ export default async function OrcamentoEditorPage({
     .where(eq(linhasOrcamento.orcamentoId, orcamentoId))
     .orderBy(asc(linhasOrcamento.ordem));
 
+  const riscos = await db
+    .select()
+    .from(riscosIdentificados)
+    .where(eq(riscosIdentificados.orcamentoId, orcamentoId))
+    .orderBy(asc(riscosIdentificados.severidade));
+
+  const [{ count: numFicheiros = 0 } = { count: 0 }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(ficheirosObra)
+    .where(eq(ficheirosObra.obraId, obraId));
+
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-3">
@@ -87,6 +102,9 @@ export default async function OrcamentoEditorPage({
             </p>
           </div>
           <div className="flex flex-wrap items-start justify-end gap-2">
+            {numFicheiros > 0 ? (
+              <AnaliseIAButton orcamentoId={orcamento.id} />
+            ) : null}
             <ExportButtons orcamentoId={orcamento.id} />
             <Button asChild variant="ghost">
               <Link href={`/obras/${obra.id}`}>Fechar</Link>
@@ -100,6 +118,8 @@ export default async function OrcamentoEditorPage({
         orcamento={orcamento}
         linhas={linhas}
       />
+
+      <RiscosPanel riscos={riscos} />
     </div>
   );
 }

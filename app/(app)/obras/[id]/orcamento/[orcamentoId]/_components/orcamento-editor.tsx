@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ import {
 } from "@/lib/format";
 
 import { saveOrcamentoAction } from "../../actions";
+import { sugerirPrecoAction } from "../ia-actions";
 import { TabelaSearch } from "./tabela-search";
 
 type LinhaState = {
@@ -141,6 +143,49 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
     initialLinhas.map(linhaToState),
   );
   const [isSaving, startSave] = useTransition();
+  const [suggestingId, setSuggestingId] = useState<string | null>(null);
+
+  function handleSuggestPrice(linha: LinhaState) {
+    if (!linha.descricao.trim()) {
+      toast.error("Preenche a descrição antes de pedir sugestão.");
+      return;
+    }
+    setSuggestingId(linha.localId);
+    (async () => {
+      try {
+        const res = await sugerirPrecoAction({
+          descricao: linha.descricao,
+          unidade: linha.unidade,
+          categoria: linha.categoria,
+          quantidade: parseQuantity(linha.quantidadeStr),
+          orcamentoId: orcamento.id,
+        });
+        if (!res.ok) {
+          toast.error(res.error);
+          return;
+        }
+        updateLinha(linha.localId, {
+          precoClienteStr: (res.precoClienteCents / 100)
+            .toFixed(2)
+            .replace(".", ","),
+          custoInternoStr: (res.custoInternoCents / 100)
+            .toFixed(2)
+            .replace(".", ","),
+          origem: "ia_sugestao",
+          notas:
+            (linha.notas ? linha.notas + "\n" : "") +
+            `IA (${res.confianca}): ${res.justificacao}`,
+        });
+        toast.success(
+          `Sugestão IA: €${(res.precoClienteCents / 100).toFixed(2)} / ${linha.unidade}`,
+        );
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro.");
+      } finally {
+        setSuggestingId(null);
+      }
+    })();
+  }
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -483,6 +528,19 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleSuggestPrice(l)}
+                          disabled={suggestingId === l.localId}
+                          className="rounded p-1 text-muted-foreground hover:bg-accent disabled:opacity-50"
+                          aria-label="Sugerir preço com IA"
+                          title="Sugerir preço com IA"
+                        >
+                          <Sparkles
+                            aria-hidden
+                            className={`size-3.5 ${suggestingId === l.localId ? "animate-pulse" : ""}`}
+                          />
+                        </button>
                         <button
                           type="button"
                           onClick={() => moveLinha(l.localId, -1)}

@@ -227,12 +227,95 @@ Acompanhamento do progresso fase a fase conforme [SPEC.md §11](./SPEC.md).
 
 ---
 
-## Fase 5 — Upload e IA *(pendente)*
+## Fase 5 — Upload e IA ✅ *(código concluído a 2026-04-22)*
 
-- [ ] Upload de fotos/documentos para `data/uploads/`
-- [ ] Integração Anthropic (Claude Sonnet 4.6) para análise de obra
-- [ ] Aplicação dos resultados (linhas + riscos) ao orçamento
-- [ ] Sugestão de preços por IA
+### Feito
+
+- [x] Dependências instaladas: `@anthropic-ai/sdk` v0.90.0 + `checkbox`
+      (shadcn) para o painel de riscos
+- [x] **Storage local** (`lib/uploads/storage.ts`): raiz configurável via
+      `UPLOADS_ROOT` (default `data/uploads/`, gitignored), path
+      `{obraId}/{uuid}_{filename}`, filename sanitizado, MIME whitelist
+      por extensão (jpg/jpeg/png/webp/pdf/xlsx), limite 20 MB, helpers
+      `saveUpload` / `readUpload` / `deleteUpload`.
+- [x] **XLSX → texto** (`lib/uploads/xlsx-to-text.ts`): extrai MTQ do
+      Excel do cliente para passar como texto à IA (em vez de binário).
+- [x] **Upload UI** na página da obra: formulário multi-file com select
+      de tipo (8 tipos: foto/mtq/projeto 3D/elétrico/hidráulico/carpintaria/
+      avac/outro), progresso + resumo do que entrou e do que foi
+      ignorado, tabela de ficheiros com link para abrir/descarregar e
+      botão apagar com AlertDialog. API route `/api/ficheiros/[id]`
+      serve o ficheiro (inline para imagens/PDF, attachment para o
+      resto) com `auth()` explícito.
+- [x] **AI client** (`lib/ai/client.ts`): singleton lazy com
+      `ANTHROPIC_API_KEY`, modelo default `claude-sonnet-4-6`,
+      `estimarCustoCents()` a $3/M input + $15/M output @ 0.92 USD→EUR.
+- [x] **Prompts** (`lib/ai/prompts/*`): `SYSTEM_ANALISE_OBRA` (SPEC §8)
+      e `SYSTEM_SUGESTAO_PRECO` — JSON estrito, sem markdown, schemas
+      Zod a validar output.
+- [x] **Análise de obra** (`lib/ai/analise-obra.ts`): aceita contexto
+      + imagens (base64) + PDFs (document blocks) + texto MTQ. Schema
+      Zod: `trabalhos_propostos[]`, `riscos[]`, `observacoes_gerais`.
+      Limites por análise: 8 imagens + 3 PDFs.
+- [x] **Sugestão de preço** (`lib/ai/sugestao-preco.ts`): dada uma
+      linha manual (descrição + unidade + categoria + quantidade),
+      devolve `preco_cliente_eur`, `custo_interno_eur`, `justificacao`,
+      `confianca`.
+- [x] **Server actions** (`ia-actions.ts`):
+  - `analisarObraAction(orcamentoId)` — puxa ficheiros, chama IA,
+    insere linhas (`origem: "ia_sugestao"`, preço 0) e riscos,
+    regista em `analises_ia` com tokens + custo em cêntimos.
+  - `sugerirPrecoAction({...})` — pede sugestão para linha manual,
+    regista no histórico mesmo sem aplicar.
+  - `toggleRiscoResolvidoAction` + `deleteRiscoAction`.
+- [x] **Botão "Analisar com IA"** no editor (`AnaliseIAButton`):
+      `AlertDialog` a avisar que há custo + o output é aplicado ao
+      orçamento; só aparece se a obra tem ficheiros carregados.
+- [x] **Painel de riscos** (`RiscosPanel`): lista com checkbox
+      "resolvido", badge de severidade (baixa/média/alta), custo
+      adicional estimado, impacto e recomendação, botão apagar.
+- [x] **Botão Sparkles na linha** do editor: pede sugestão de preço
+      à IA para uma linha manual, preenche preço cliente + custo
+      interno + justificação nas notas automaticamente.
+- [x] `tsc`, `eslint` e `next build` passam sem erros.
+
+### Decisões
+
+- **Sem HEIC na v1**: é rejeitado no upload com mensagem clara
+  ("converte para JPG"). Adicionar `heic-convert` fica para v2 se
+  alguma câmara de iPhone continuar a importar HEIC.
+- **Custo controlado**: cap rígido de 8 imagens + 3 PDFs por
+  análise. Se houver mais ficheiros, ignoramos os extra (loguear
+  e seguir) — user pode apagar os menos relevantes e repetir.
+- **Linhas IA entram com preço 0**: o orçamentista ajusta
+  manualmente ou chama o botão Sparkles por linha depois. Assim
+  a IA nunca "decide" um preço sem revisão.
+- **`FICHEIRO_TIPOS` fora do "use server"**: Next 16 rejeita
+  exports não-async em ficheiros `"use server"`. Movidos para
+  `app/(app)/obras/[id]/ficheiros/tipos.ts`.
+- **Auth em `/api/ficheiros/[id]`**: o proxy exclui `/api`, logo
+  a route chama `auth()` explicitamente antes de servir o blob.
+- **Transação síncrona no better-sqlite3**: `db.transaction(tx => {...})`
+  sem `async` (regra já aprendida na Fase 3).
+
+### Pendente para teste manual (antes do OK da Fase 5)
+
+- [ ] Criar `ANTHROPIC_API_KEY` no `.env` local
+- [ ] Abrir uma obra, carregar 2-3 fotos + um MTQ (xlsx) + um
+      projeto PDF, confirmar que aparecem na lista
+- [ ] Apagar um ficheiro e confirmar que desaparece + o blob
+      é removido do disco (`data/uploads/`)
+- [ ] Abrir o orçamento dessa obra, clicar em **Analisar com IA**,
+      confirmar toast com número de trabalhos + riscos + custo
+      estimado e que observações gerais aparecem em toast
+- [ ] Confirmar que linhas novas aparecem no editor com badge "IA"
+      e preço 0 (pronto para ajustar)
+- [ ] Confirmar que o painel de riscos apresenta severidade,
+      impacto e recomendação; marcar um como resolvido e apagar
+      outro
+- [ ] Numa linha manual com descrição preenchida, clicar no
+      ícone ✨ Sparkles e confirmar que o preço é sugerido + nota
+      da IA é adicionada
 
 ---
 

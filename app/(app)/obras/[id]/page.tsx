@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { db } from "@/lib/db";
-import { clientes, obras, orcamentos } from "@/lib/db/schema";
+import { clientes, ficheirosObra, obras, orcamentos } from "@/lib/db/schema";
 import {
   formatCents,
   formatDateTime,
@@ -30,6 +30,9 @@ import {
 } from "@/lib/format";
 
 import { createOrcamentoAction } from "./orcamento/actions";
+import { FICHEIRO_TIPO_LABELS } from "./ficheiros/tipos";
+import { UploadForm } from "./ficheiros/_components/upload-form";
+import { DeleteFicheiroButton } from "./ficheiros/_components/file-row";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +77,20 @@ export default async function ObraDashboardPage({
     .where(eq(orcamentos.obraId, obra.id))
     .orderBy(desc(orcamentos.versao));
 
+  const ficheiros = await db
+    .select()
+    .from(ficheirosObra)
+    .where(eq(ficheirosObra.obraId, obra.id))
+    .orderBy(asc(ficheirosObra.tipo), asc(ficheirosObra.uploadedAt));
+
   const createOrcBound = createOrcamentoAction.bind(null, obra.id);
+
+  function formatBytes(b: number | null | undefined): string {
+    if (b == null) return "—";
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+    return `${(b / 1024 / 1024).toFixed(1)} MB`;
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -190,6 +206,72 @@ export default async function ObraDashboardPage({
           </CardHeader>
         </Card>
       ) : null}
+
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-col">
+          <h2 className="text-lg font-medium">Ficheiros</h2>
+          <p className="text-xs text-muted-foreground">
+            Fotos do estado atual, MTQ, projetos de especialidades. Usados como
+            input da análise IA.
+          </p>
+        </div>
+
+        <UploadForm obraId={obra.id} />
+
+        {ficheiros.length === 0 ? (
+          <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+            Ainda não há ficheiros carregados.
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Nome</TableHead>
+                  <TableHead className="text-right">Tamanho</TableHead>
+                  <TableHead className="text-muted-foreground">Upload</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ficheiros.map((f) => (
+                  <TableRow key={f.id}>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {FICHEIRO_TIPO_LABELS[
+                        f.tipo as keyof typeof FICHEIRO_TIPO_LABELS
+                      ] ?? f.tipo}
+                    </TableCell>
+                    <TableCell>
+                      <a
+                        href={`/api/ficheiros/${f.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                      >
+                        {f.nomeOriginal}
+                      </a>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs tabular-nums">
+                      {formatBytes(f.tamanhoBytes)}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {formatDateTime(f.uploadedAt)}
+                    </TableCell>
+                    <TableCell>
+                      <DeleteFicheiroButton
+                        obraId={obra.id}
+                        ficheiroId={f.id}
+                        nomeOriginal={f.nomeOriginal}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </section>
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
