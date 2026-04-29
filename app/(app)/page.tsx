@@ -111,7 +111,7 @@ export default function HomePage() {
                 aria-hidden
                 className="inline-block h-px w-8 bg-gradient-to-r from-primary to-transparent"
               />
-              Os fundadores ladrones
+              Os fundadores
             </p>
             <h2 className="bg-gradient-to-br from-foreground via-foreground to-foreground/60 bg-clip-text text-3xl font-medium leading-tight tracking-tight text-transparent">
               Dois irmãos.
