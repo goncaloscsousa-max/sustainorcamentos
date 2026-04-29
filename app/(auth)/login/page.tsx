@@ -15,10 +15,17 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-sm border-border/60 bg-card/70 shadow-2xl backdrop-blur-xl">
       <CardHeader className="text-center">
+        <div className="mx-auto mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+          <span
+            aria-hidden
+            className="inline-block size-2 rounded-full bg-primary shadow-[0_0_18px_4px_oklch(0.62_0.23_25/0.55)]"
+          />
+          <span>Sustain</span>
+        </div>
         <CardTitle className="text-2xl font-medium tracking-tight">
-          Sustain Orçamentos
+          Orçamentos
         </CardTitle>
         <CardDescription className="italic">
           Transforme o seu espaço. Transforme a sua vida.

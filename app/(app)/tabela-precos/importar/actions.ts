@@ -9,6 +9,7 @@ import {
   tabelaPrecoSchema,
   type TabelaPrecoInput,
 } from "@/lib/validation/tabela-preco";
+import { requireUser } from "@/lib/auth/require-user";
 
 export type ImportCommitResult =
   | { ok: true; inserted: number; updated: number }
@@ -17,6 +18,12 @@ export type ImportCommitResult =
 export async function commitImportAction(
   rows: TabelaPrecoInput[],
 ): Promise<ImportCommitResult> {
+  try {
+    await requireUser();
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Não autenticado." };
+  }
+
   // Re-validar defensivamente no servidor — o cliente pode mentir.
   const validated: TabelaPrecoInput[] = [];
   for (const row of rows) {

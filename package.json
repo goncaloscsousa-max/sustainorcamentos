@@ -2,15 +2,20 @@
   "name": "sustain-orcamentos",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0 <23"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "preflight": "npm run lint && tsc --noEmit && next build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx lib/db/migrate.ts",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx lib/db/seed.ts"
+    "db:seed": "tsx lib/db/seed.ts",
+    "db:backup": "tsx scripts/db-backup.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

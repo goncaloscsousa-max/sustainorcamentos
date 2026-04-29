@@ -90,6 +90,15 @@ export const obras = sqliteTable(
     dataVisita: text("data_visita"),
     dataInicioPrevista: text("data_inicio_prevista"),
     dataConclusaoPrevista: text("data_conclusao_prevista"),
+    distrito: text("distrito"),
+    cidade: text("cidade"),
+    descricao: text("descricao"),
+    briefing: text("briefing"),
+    sugestoesMateriais: text("sugestoes_materiais"),
+    sugestoesMateriaisAtualizadasEm: integer(
+      "sugestoes_materiais_atualizadas_em",
+      { mode: "timestamp_ms" },
+    ),
     notas: text("notas"),
     criadoPor: text("criado_por").references(() => users.id, {
       onDelete: "set null",
@@ -261,7 +270,7 @@ export const ficheirosObra = sqliteTable(
   (t) => [
     check(
       "ficheiros_tipo_check",
-      sql`${t.tipo} IN ('foto_estado_atual', 'mtq', 'projeto_3d', 'projeto_eletricidade', 'projeto_hidraulica', 'projeto_carpintaria', 'projeto_avac', 'outro')`,
+      sql`${t.tipo} IN ('foto_estado_atual', 'referencia_final', 'mtq', 'projeto_3d', 'projeto_eletricidade', 'projeto_hidraulica', 'projeto_carpintaria', 'projeto_avac', 'outro')`,
     ),
     index("ficheiros_obra_idx").on(t.obraId),
   ],
@@ -289,9 +298,30 @@ export const analisesIA = sqliteTable(
   (t) => [
     check(
       "analises_tipo_check",
-      sql`${t.tipo} IN ('extracao_trabalhos', 'riscos', 'sugestao_preco')`,
+      sql`${t.tipo} IN ('extracao_trabalhos', 'riscos', 'sugestao_preco', 'sugestao_materiais')`,
     ),
     index("analises_orcamento_idx").on(t.orcamentoId),
+  ],
+);
+
+/* ---------------------------------------------------------------------- */
+/*                          USO DO CHATBOT (Adriana)                      */
+/* ---------------------------------------------------------------------- */
+
+export const chatbotUsage = sqliteTable(
+  "chatbot_usage",
+  {
+    id: uuid(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokensInput: integer("tokens_input").notNull().default(0),
+    tokensOutput: integer("tokens_output").notNull().default(0),
+    custoEstimadoCents: integer("custo_estimado_cents").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("chatbot_usage_user_created_idx").on(t.userId, t.createdAt),
   ],
 );
 

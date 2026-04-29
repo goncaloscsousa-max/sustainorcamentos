@@ -16,6 +16,9 @@ if (!fs.existsSync(dir)) {
 const sqlite = new Database(DB_PATH);
 sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
+// Espera até 5 s antes de lançar SQLITE_BUSY se a DB estiver bloqueada por
+// outro writer (ex.: backup online, migration concorrente).
+sqlite.pragma("busy_timeout = 5000");
 
 export const db = drizzle(sqlite, { schema });
 export { schema };

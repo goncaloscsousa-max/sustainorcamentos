@@ -12,6 +12,7 @@ import {
   type ActionState,
   zodIssuesToFieldErrors,
 } from "@/lib/actions/types";
+import { requireUser } from "@/lib/auth/require-user";
 
 function parseFormData(formData: FormData) {
   return {
@@ -38,6 +39,12 @@ export async function createTabelaPrecoAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  try {
+    await requireUser();
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Não autenticado." };
+  }
+
   const parsed = tabelaPrecoSchema.safeParse(parseFormData(formData));
   if (!parsed.success) {
     return { fieldErrors: zodIssuesToFieldErrors(parsed.error.issues) };
@@ -67,6 +74,12 @@ export async function updateTabelaPrecoAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  try {
+    await requireUser();
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Não autenticado." };
+  }
+
   const parsed = tabelaPrecoSchema.safeParse(parseFormData(formData));
   if (!parsed.success) {
     return { fieldErrors: zodIssuesToFieldErrors(parsed.error.issues) };
@@ -93,6 +106,8 @@ export async function updateTabelaPrecoAction(
 }
 
 export async function deleteTabelaPrecoAction(id: string): Promise<void> {
+  await requireUser();
+
   try {
     await db.delete(tabelaPrecos).where(eq(tabelaPrecos.id, id));
   } catch (err) {

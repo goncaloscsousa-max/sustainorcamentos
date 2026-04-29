@@ -17,6 +17,7 @@ export type SugestaoPrecoInput = {
   unidade: string;
   categoria?: string | null;
   quantidade?: number | null;
+  regiaoContexto?: string | null;
 };
 
 export type SugestaoPrecoOutcome = {
@@ -46,6 +47,9 @@ export async function sugerirPreco(
     `Unidade: ${input.unidade}\n` +
     (input.categoria ? `Categoria: ${input.categoria}\n` : "") +
     (input.quantidade != null ? `Quantidade: ${input.quantidade}\n` : "") +
+    (input.regiaoContexto
+      ? `\n${input.regiaoContexto}\n(Aplica este ajuste regional aos valores.)\n`
+      : "") +
     `\nDevolve o JSON com o preço por ${input.unidade}.`;
 
   const response = await client.messages.create({

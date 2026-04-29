@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { db } from "@/lib/db";
-import { clientes, ficheirosObra, obras, orcamentos } from "@/lib/db/schema";
+import {
+  clientes,
+  ficheirosObra,
+  linhasOrcamento,
+  obras,
+  orcamentos,
+  riscosIdentificados,
+} from "@/lib/db/schema";
 import {
   formatCents,
   formatDateTime,
@@ -28,11 +35,31 @@ import {
   labelForEstadoObra,
   labelForTipoObra,
 } from "@/lib/format";
+import {
+  REGIONAL_PRICE_FACTOR_BPS,
+  labelForDistrito,
+  type Distrito,
+} from "@/lib/data/portugal-locations";
+import {
+  ANO_CONSTRUCAO_OPCOES,
+  DIVISAO_LABELS,
+  ELEVADOR_OPCOES,
+  ESTADO_INSTALACAO_OPCOES,
+  HABITADO_DURANTE_OBRA_OPCOES,
+  NIVEL_ACABAMENTOS_OPCOES,
+  PISO_OPCOES,
+  PRIORIDADE_OPCOES,
+  TIPOLOGIA_IMOVEL_OPCOES,
+  tryParseBriefing,
+} from "@/lib/data/briefing-obra";
 
 import { createOrcamentoAction } from "./orcamento/actions";
 import { FICHEIRO_TIPO_LABELS } from "./ficheiros/tipos";
 import { UploadForm } from "./ficheiros/_components/upload-form";
 import { DeleteFicheiroButton } from "./ficheiros/_components/file-row";
+import { FasesFlowchart } from "./_components/fases-flowchart";
+import { SugestoesMateriais } from "./_components/sugestoes-materiais";
+import { sugestaoMateriaisResultSchema } from "@/lib/ai/sugestao-materiais";
 
 export const dynamic = "force-dynamic";
 
@@ -67,21 +94,91 @@ export default async function ObraDashboardPage({
   const obra = await db.query.obras.findFirst({ where: eq(obras.id, id) });
   if (!obra) notFound();
 
-  const cliente = await db.query.clientes.findFirst({
-    where: eq(clientes.id, obra.clienteId),
-  });
+  const [cliente, orcamentosList, ficheiros] = await Promise.all([
+    db.query.clientes.findFirst({ where: eq(clientes.id, obra.clienteId) }),
+    db
+      .select()
+      .from(orcamentos)
+      .where(eq(orcamentos.obraId, obra.id))
+      .orderBy(desc(orcamentos.versao)),
+    db
+      .select()
+      .from(ficheirosObra)
+      .where(eq(ficheirosObra.obraId, obra.id))
+      .orderBy(asc(ficheirosObra.tipo), asc(ficheirosObra.uploadedAt)),
+  ]);
 
-  const orcamentosList = await db
-    .select()
-    .from(orcamentos)
-    .where(eq(orcamentos.obraId, obra.id))
-    .orderBy(desc(orcamentos.versao));
+  const orcamentoMaisRecente = orcamentosList[0] ?? null;
+  const orcamentoIds = orcamentosList.map((o) => o.id);
 
-  const ficheiros = await db
-    .select()
-    .from(ficheirosObra)
-    .where(eq(ficheirosObra.obraId, obra.id))
-    .orderBy(asc(ficheirosObra.tipo), asc(ficheirosObra.uploadedAt));
+  // Linhas do orçamento mais recente (para o fluxograma) + agregação de
+  // riscos abertos em todos os orçamentos da obra (para o badge no topo).
+  const [linhasMaisRecente, riscosAbertosRows] = await Promise.all([
+    orcamentoMaisRecente
+      ? db
+          .select()
+          .from(linhasOrcamento)
+          .where(eq(linhasOrcamento.orcamentoId, orcamentoMaisRecente.id))
+          .orderBy(asc(linhasOrcamento.ordem))
+      : Promise.resolve([]),
+    orcamentoIds.length > 0
+      ? db
+          .select({
+            orcamentoId: riscosIdentificados.orcamentoId,
+            severidade: riscosIdentificados.severidade,
+            n: sql<number>`count(*)`,
+          })
+          .from(riscosIdentificados)
+          .where(
+            and(
+              inArray(riscosIdentificados.orcamentoId, orcamentoIds),
+              eq(riscosIdentificados.resolvido, false),
+            ),
+          )
+          .groupBy(
+            riscosIdentificados.orcamentoId,
+            riscosIdentificados.severidade,
+          )
+      : Promise.resolve([] as { orcamentoId: string; severidade: string; n: number }[]),
+  ]);
+
+  const riscosAlta = riscosAbertosRows
+    .filter((r) => r.severidade === "alta")
+    .reduce((a, r) => a + Number(r.n), 0);
+  const riscosMedia = riscosAbertosRows
+    .filter((r) => r.severidade === "media")
+    .reduce((a, r) => a + Number(r.n), 0);
+  const riscosBaixa = riscosAbertosRows
+    .filter((r) => r.severidade === "baixa")
+    .reduce((a, r) => a + Number(r.n), 0);
+  const riscosTotal = riscosAlta + riscosMedia + riscosBaixa;
+  const orcamentoComMaisRiscos =
+    riscosTotal > 0
+      ? riscosAbertosRows
+          .reduce<Record<string, number>>((acc, r) => {
+            acc[r.orcamentoId] = (acc[r.orcamentoId] ?? 0) + Number(r.n);
+            return acc;
+          }, {})
+      : null;
+  const orcamentoIdParaRiscos = orcamentoComMaisRiscos
+    ? Object.entries(orcamentoComMaisRiscos).sort(
+        (a, b) => b[1] - a[1],
+      )[0]?.[0] ?? null
+    : null;
+
+  // Sugestões de materiais persistidas
+  const sugestoesParsed = (() => {
+    if (!obra.sugestoesMateriais) return null;
+    try {
+      return sugestaoMateriaisResultSchema.parse(
+        JSON.parse(obra.sugestoesMateriais),
+      );
+    } catch {
+      return null;
+    }
+  })();
+
+  const briefingPreenchido = !!obra.briefing;
 
   const createOrcBound = createOrcamentoAction.bind(null, obra.id);
 
@@ -91,6 +188,19 @@ export default async function ObraDashboardPage({
     if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
     return `${(b / 1024 / 1024).toFixed(1)} MB`;
   }
+
+  const factorBps = obra.distrito
+    ? REGIONAL_PRICE_FACTOR_BPS[obra.distrito as Distrito]
+    : null;
+  const factorPct = factorBps != null ? (factorBps - 10000) / 100 : null;
+
+  const briefing = tryParseBriefing(obra.briefing);
+  const labelOf = (
+    opts: readonly { value: string; label: string }[],
+    v: string,
+  ) => opts.find((o) => o.value === v)?.label ?? v;
+
+  const prazoDesejadoSemanas = briefing?.prazoDesejadoSemanas ?? null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -121,13 +231,73 @@ export default async function ObraDashboardPage({
               {obra.moradaObra}
             </p>
           </div>
-          <Button asChild variant="secondary">
-            <Link href={`/obras/${obra.id}/editar`}>Editar obra</Link>
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {riscosTotal > 0 && orcamentoIdParaRiscos ? (
+              <Button
+                asChild
+                variant="outline"
+                className="border-amber-300/60 text-amber-700 hover:bg-amber-50 dark:border-amber-700/50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+              >
+                <Link
+                  href={`/obras/${obra.id}/orcamento/${orcamentoIdParaRiscos}`}
+                >
+                  {riscosTotal} risco{riscosTotal === 1 ? "" : "s"} aberto
+                  {riscosTotal === 1 ? "" : "s"}
+                  {riscosAlta > 0 ? ` · ${riscosAlta} alta${riscosAlta === 1 ? "" : "s"}` : ""}
+                </Link>
+              </Button>
+            ) : null}
+            <Button asChild variant="secondary">
+              <Link href={`/obras/${obra.id}/editar`}>Editar obra</Link>
+            </Button>
+          </div>
         </div>
       </header>
 
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium">Localização</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-1 text-sm">
+            {obra.distrito ? (
+              <>
+                <span className="font-medium">
+                  {obra.cidade ? `${obra.cidade}, ` : ""}
+                  {labelForDistrito(obra.distrito)}
+                </span>
+                {factorPct != null ? (
+                  <span className="text-xs text-muted-foreground">
+                    Ajuste regional de preços:{" "}
+                    <span
+                      className={
+                        factorPct > 0
+                          ? "font-mono text-primary"
+                          : factorPct < 0
+                            ? "font-mono text-emerald-600"
+                            : "font-mono"
+                      }
+                    >
+                      {factorPct > 0 ? "+" : ""}
+                      {factorPct.toFixed(1)} %
+                    </span>
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <span className="text-muted-foreground">
+                Sem região definida.{" "}
+                <Link
+                  href={`/obras/${obra.id}/editar`}
+                  className="underline hover:text-primary"
+                >
+                  Adicionar
+                </Link>
+              </span>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-medium">Cliente</CardTitle>
@@ -196,10 +366,231 @@ export default async function ObraDashboardPage({
         </Card>
       </section>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-medium">
+            Briefing da obra
+          </CardTitle>
+          <CardDescription>
+            Toda a informação estruturada que vai como contexto à IA.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {briefing ? (
+            <div className="grid gap-6 md:grid-cols-2">
+              <BriefingBlock title="Âmbito e dimensões">
+                <BriefingItem
+                  label="Divisões"
+                  value={briefing.divisoes
+                    .map((d) => DIVISAO_LABELS[d])
+                    .join(", ")}
+                />
+                <BriefingItem
+                  label="Área total"
+                  value={`${briefing.areaTotalM2} m²`}
+                />
+                {briefing.peDireitoM != null ? (
+                  <BriefingItem
+                    label="Pé-direito"
+                    value={`${briefing.peDireitoM} m`}
+                  />
+                ) : null}
+              </BriefingBlock>
+
+              <BriefingBlock title="Imóvel">
+                <BriefingItem
+                  label="Tipologia"
+                  value={labelOf(
+                    TIPOLOGIA_IMOVEL_OPCOES,
+                    briefing.tipologiaImovel,
+                  )}
+                />
+                <BriefingItem
+                  label="Ano construção"
+                  value={labelOf(ANO_CONSTRUCAO_OPCOES, briefing.anoConstrucao)}
+                />
+                <BriefingItem
+                  label="Piso"
+                  value={labelOf(PISO_OPCOES, briefing.piso)}
+                />
+                <BriefingItem
+                  label="Elevador"
+                  value={labelOf(ELEVADOR_OPCOES, briefing.elevador)}
+                />
+                <BriefingItem
+                  label="Habitado durante obra"
+                  value={labelOf(
+                    HABITADO_DURANTE_OBRA_OPCOES,
+                    briefing.habitado,
+                  )}
+                />
+                {briefing.ultimaIntervencao ? (
+                  <BriefingItem
+                    label="Última intervenção"
+                    value={briefing.ultimaIntervencao}
+                  />
+                ) : null}
+              </BriefingBlock>
+
+              <BriefingBlock title="Instalações">
+                <BriefingItem
+                  label="Elétrica"
+                  value={labelOf(
+                    ESTADO_INSTALACAO_OPCOES,
+                    briefing.estadoEletrica,
+                  )}
+                />
+                <BriefingItem
+                  label="Canalização"
+                  value={labelOf(
+                    ESTADO_INSTALACAO_OPCOES,
+                    briefing.estadoCanalizacao,
+                  )}
+                />
+                <BriefingItem
+                  label="Saneamento"
+                  value={labelOf(
+                    ESTADO_INSTALACAO_OPCOES,
+                    briefing.estadoSaneamento,
+                  )}
+                />
+                <BriefingItem
+                  label="Gás"
+                  value={labelOf(ESTADO_INSTALACAO_OPCOES, briefing.estadoGas)}
+                />
+                <BriefingItem
+                  label="AVAC"
+                  value={labelOf(ESTADO_INSTALACAO_OPCOES, briefing.estadoAvac)}
+                />
+              </BriefingBlock>
+
+              <BriefingBlock title="Acabamentos & comerciais">
+                <BriefingItem
+                  label="Nível"
+                  value={labelOf(
+                    NIVEL_ACABAMENTOS_OPCOES,
+                    briefing.nivelAcabamentos,
+                  )}
+                />
+                {briefing.referenciasMateriais ? (
+                  <BriefingItem
+                    label="Referências"
+                    value={briefing.referenciasMateriais}
+                  />
+                ) : null}
+                {briefing.marcasPreferidas ? (
+                  <BriefingItem
+                    label="Marcas"
+                    value={briefing.marcasPreferidas}
+                  />
+                ) : null}
+                <BriefingItem
+                  label="Prioridade"
+                  value={labelOf(PRIORIDADE_OPCOES, briefing.prioridade)}
+                />
+                {briefing.orcamentoAlvoMinEur != null ||
+                briefing.orcamentoAlvoMaxEur != null ? (
+                  <BriefingItem
+                    label="Orçamento alvo"
+                    value={`${briefing.orcamentoAlvoMinEur ?? "?"} – ${briefing.orcamentoAlvoMaxEur ?? "?"} €`}
+                  />
+                ) : null}
+                {briefing.prazoDesejadoSemanas != null ? (
+                  <BriefingItem
+                    label="Prazo desejado"
+                    value={`${briefing.prazoDesejadoSemanas} semanas`}
+                  />
+                ) : null}
+                {briefing.outrosOrcamentos ? (
+                  <BriefingItem
+                    label="Concorrência"
+                    value={briefing.outrosOrcamentos}
+                  />
+                ) : null}
+              </BriefingBlock>
+
+              {(briefing.acesso || briefing.restricoesHorario) && (
+                <BriefingBlock title="Logística" wide>
+                  {briefing.acesso ? (
+                    <BriefingItem label="Acesso" value={briefing.acesso} />
+                  ) : null}
+                  {briefing.restricoesHorario ? (
+                    <BriefingItem
+                      label="Restrições"
+                      value={briefing.restricoesHorario}
+                    />
+                  ) : null}
+                </BriefingBlock>
+              )}
+
+              {briefing.problemasConhecidos ? (
+                <BriefingBlock title="Problemas conhecidos" wide>
+                  <p className="whitespace-pre-wrap text-sm">
+                    {briefing.problemasConhecidos}
+                  </p>
+                </BriefingBlock>
+              ) : null}
+
+              <BriefingBlock title="Pedido do cliente (palavras dele)" wide>
+                <p className="whitespace-pre-wrap text-sm">
+                  {briefing.trabalhoEspecifico}
+                </p>
+              </BriefingBlock>
+
+              {briefing.notasAdicionais ? (
+                <BriefingBlock title="Notas adicionais" wide>
+                  <p className="whitespace-pre-wrap text-sm">
+                    {briefing.notasAdicionais}
+                  </p>
+                </BriefingBlock>
+              ) : null}
+            </div>
+          ) : obra.descricao ? (
+            <div className="flex flex-col gap-3">
+              <p className="rounded-md border border-amber-300/60 bg-amber-50/40 px-3 py-2 text-xs text-amber-800 dark:border-amber-700/40 dark:bg-amber-950/20 dark:text-amber-300">
+                Esta obra foi criada antes do briefing estruturado. Edita-a para
+                ativar a análise IA com qualidade.
+              </p>
+              <p className="whitespace-pre-wrap text-sm text-foreground">
+                {obra.descricao}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Ainda sem briefing.{" "}
+              <Link
+                href={`/obras/${obra.id}/editar`}
+                className="underline hover:text-primary"
+              >
+                Edita a obra
+              </Link>{" "}
+              e responde ao briefing — a IA precisa dele para dar um orçamento
+              detalhado.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <FasesFlowchart
+        linhasOrcamentoMaisRecente={linhasMaisRecente}
+        estadoObra={obra.estado}
+        prazoDesejadoSemanas={prazoDesejadoSemanas}
+      />
+
+      <SugestoesMateriais
+        obraId={obra.id}
+        sugestoes={sugestoesParsed?.sugestoes ?? null}
+        observacoes={sugestoesParsed?.observacoes ?? null}
+        atualizadoEm={obra.sugestoesMateriaisAtualizadasEm ?? null}
+        podeGerar={briefingPreenchido}
+      />
+
       {obra.notas ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-medium">Notas</CardTitle>
+            <CardTitle className="text-base font-medium">
+              Notas internas
+            </CardTitle>
             <CardDescription className="whitespace-pre-wrap pt-2">
               {obra.notas}
             </CardDescription>
@@ -345,6 +736,38 @@ export default async function ObraDashboardPage({
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function BriefingBlock({
+  title,
+  wide,
+  children,
+}: {
+  title: string;
+  wide?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`flex flex-col gap-2 ${wide ? "md:col-span-2" : ""}`}>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h3>
+      <div className="flex flex-col gap-1.5 rounded-md border bg-background/60 p-3 text-sm">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function BriefingItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
+      <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground sm:w-32 shrink-0">
+        {label}
+      </span>
+      <span className="text-sm leading-snug">{value}</span>
     </div>
   );
 }

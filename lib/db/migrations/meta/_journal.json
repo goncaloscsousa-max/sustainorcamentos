@@ -8,6 +8,55 @@
       "when": 1776800159490,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1776872833572,
+      "tag": "0001_add_descricao_to_obras",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776875085382,
+      "tag": "0002_add_chatbot_usage",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1776886833408,
+      "tag": "0003_add_regiao_to_obras",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1776887023457,
+      "tag": "0004_add_referencia_final_ficheiro_tipo",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1777460654937,
+      "tag": "0005_uneven_warpath",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1777469675922,
+      "tag": "0006_shocking_puck",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1777471878779,
+      "tag": "0007_lumpy_groot",
+      "breakpoints": true
     }
   ]
 }

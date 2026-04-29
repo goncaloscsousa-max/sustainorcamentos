@@ -1,0 +1,65 @@
+; Unit systemd para Sustain Orçamentos.
+; Copiar para /etc/systemd/system/sustain-orcamentos.service
+;
+; Substitui __APP_NAME__ se quiseres outro nome (default: sustain-orcamentos).
+;
+; Activar:
+;   sudo systemctl daemon-reload
+;   sudo systemctl enable sustain-orcamentos
+;   sudo systemctl start sustain-orcamentos
+;
+; Logs em tempo real:
+;   journalctl -u sustain-orcamentos -f
+
+[Unit]
+Description=Sustain Orcamentos (Next.js)
+Documentation=https://github.com/__REPO_URL__
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sustain
+Group=sustain
+
+WorkingDirectory=/srv/sustain-orcamentos/current
+
+# .env em pasta partilhada — sobrevive a deploys e está fora da release.
+EnvironmentFile=/srv/sustain-orcamentos/shared/.env
+
+# Usar o `next` directamente (mais previsível que `npm start` em systemd).
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000
+
+# Reinicia automaticamente se cair.
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+# Logs vão para o journal (acessíveis via `journalctl -u sustain-orcamentos`).
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sustain-orcamentos
+
+# --- Hardening (defesa em profundidade) ---
+
+# Sem privilégios de root nem capability bumping.
+NoNewPrivileges=true
+
+# /tmp privado por unit (isolamento entre serviços).
+PrivateTmp=true
+
+# Filesystem read-only excepto onde indicado abaixo.
+# Se a app começar a precisar de escrever em .next/cache (ex.: ISR), acrescenta
+# ReadWritePaths=/srv/sustain-orcamentos/current/.next/cache
+ProtectSystem=strict
+ProtectHome=true
+
+# A app só pode escrever na pasta partilhada (DB, uploads, backups, logs).
+# Cobre /srv/sustain-orcamentos/shared/{data,uploads,backups,logs} de uma vez.
+ReadWritePaths=/srv/sustain-orcamentos/shared
+
+# Limites razoáveis para um Node moderado.
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

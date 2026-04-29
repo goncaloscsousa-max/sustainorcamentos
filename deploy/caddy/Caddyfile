@@ -1,0 +1,59 @@
+# Caddyfile para Sustain Orçamentos.
+#
+# Substituir __DOMAIN__ pelo domínio real ANTES de aplicar.
+#   ex.: orcamentos.exemplo.pt
+#
+# Caddy obtém certificado SSL automaticamente (Let's Encrypt). Para isso, o
+# DNS do __DOMAIN__ tem de já estar a apontar para o IP do VPS quando
+# carregares este ficheiro.
+#
+# Carregar:
+#   sudo cp deploy/caddy/Caddyfile /etc/caddy/Caddyfile
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Logs em tempo real:
+#   tail -f /srv/sustain-orcamentos/shared/logs/caddy-access.log
+
+__DOMAIN__ {
+    # Reverse proxy para o Next.js que corre na 3000 (loopback only).
+    reverse_proxy localhost:3000 {
+        # Aumenta tempos para suportar uploads grandes e geração de PDFs.
+        transport http {
+            read_timeout 5m
+            write_timeout 5m
+        }
+    }
+
+    # Compressão para respostas (HTML/JSON/CSS).
+    encode zstd gzip
+
+    # Headers de segurança baseline.
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        # Remover branding do server.
+        -Server
+    }
+
+    # Tamanho máximo do request body — TEM de acompanhar o limite real de
+    # upload da app: MAX_UPLOAD_BYTES em lib/uploads/storage.ts
+    # (actualmente 100 MB) + headroom para overhead de multipart.
+    # Se subires o limite na app, sobe aqui também, senão o Caddy corta antes.
+    request_body {
+        max_size 110MB
+    }
+
+    # Log de acessos em JSON com rotação.
+    log {
+        output file /srv/sustain-orcamentos/shared/logs/caddy-access.log {
+            roll_size 100mb
+            roll_keep 7
+            roll_keep_for 720h
+        }
+        format json
+    }
+}

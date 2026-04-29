@@ -14,6 +14,7 @@ if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 const sqlite = new Database(DB_PATH);
 sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
+sqlite.pragma("busy_timeout = 5000");
 
 const db = drizzle(sqlite);
 

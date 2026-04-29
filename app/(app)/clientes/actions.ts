@@ -12,6 +12,7 @@ import {
   type ActionState,
   zodIssuesToFieldErrors,
 } from "@/lib/actions/types";
+import { requireUser } from "@/lib/auth/require-user";
 
 function parseFormData(formData: FormData) {
   return {
@@ -28,6 +29,12 @@ export async function createClienteAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  try {
+    await requireUser();
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Não autenticado." };
+  }
+
   const parsed = clienteSchema.safeParse(parseFormData(formData));
   if (!parsed.success) {
     return { fieldErrors: zodIssuesToFieldErrors(parsed.error.issues) };
@@ -51,6 +58,12 @@ export async function updateClienteAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  try {
+    await requireUser();
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Não autenticado." };
+  }
+
   const parsed = clienteSchema.safeParse(parseFormData(formData));
   if (!parsed.success) {
     return { fieldErrors: zodIssuesToFieldErrors(parsed.error.issues) };
@@ -74,6 +87,8 @@ export async function updateClienteAction(
 }
 
 export async function deleteClienteAction(id: string): Promise<void> {
+  await requireUser();
+
   try {
     await db.delete(clientes).where(eq(clientes.id, id));
   } catch (err) {

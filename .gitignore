@@ -36,6 +36,26 @@ yarn-error.log*
 
 # local SQLite database + uploads
 /data
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/uploads/
+
+# backups locais (snapshots manuais do projecto)
+/backups
+
+# claude code workspace
+/.claude
+
+# exports gerados localmente (PDF/Excel de orçamentos)
+SUS-*.pdf
+SUS-*.xlsx
+
+# screenshots e ficheiros pessoais soltos na raiz
+/*.png
+/*.jpg
+/*.jpeg
+/*.heic
 
 # vercel
 .vercel
@@ -43,3 +63,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Materiais reais de obras (fotos do cliente) — nao vai para o repo
+OBRA LAVRA/

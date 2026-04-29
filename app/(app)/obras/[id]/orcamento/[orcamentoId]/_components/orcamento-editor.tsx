@@ -29,6 +29,7 @@ import {
   CATEGORIA_OPTIONS,
   formatCents,
   parseCentsInput,
+  parsePercentageInput,
   UNIDADE_OPTIONS,
 } from "@/lib/format";
 
@@ -198,7 +199,7 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
       subtotal += Math.round(qty * preco);
       if (custo != null) custoInterno += Math.round(qty * custo);
     }
-    const ivaBps = parseCentsInput(header.ivaPercentageStr) ?? 0;
+    const ivaBps = parsePercentageInput(header.ivaPercentageStr) ?? 0;
     const ivaCents = Math.round((subtotal * ivaBps) / 10000);
     const total = subtotal + ivaCents;
     const margemBps =
@@ -282,8 +283,8 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
       }
     }
 
-    const ivaBps = parseCentsInput(header.ivaPercentageStr);
-    if (ivaBps == null) {
+    const ivaBpsCheck = parsePercentageInput(header.ivaPercentageStr);
+    if (ivaBpsCheck == null) {
       toast.error("IVA inválido.");
       return;
     }
@@ -293,7 +294,7 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
         estado: header.estado,
         dataEmissao: header.dataEmissao,
         validadeDias: Number(header.validadeDias),
-        ivaPercentagemBps: ivaBps,
+        ivaPercentagemBps: ivaBpsCheck,
         condicoesPagamento: header.condicoesPagamento,
         observacoes: header.observacoes,
       },
@@ -419,20 +420,20 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
       </section>
 
       {/* GRID */}
-      <section className="rounded-md border overflow-hidden">
-        <Table>
+      <section className="rounded-md border overflow-x-auto">
+        <Table className="min-w-[1200px]">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-8"></TableHead>
-              <TableHead className="min-w-44">Categoria</TableHead>
-              <TableHead className="min-w-72">Descrição</TableHead>
-              <TableHead className="w-20">Un.</TableHead>
-              <TableHead className="w-20 text-right">Qtd.</TableHead>
-              <TableHead className="w-28 text-right">€ Cliente</TableHead>
-              <TableHead className="w-28 text-right">€ Custo</TableHead>
-              <TableHead className="w-28 text-right">Total €</TableHead>
-              <TableHead className="w-20">Origem</TableHead>
-              <TableHead className="w-20"></TableHead>
+              <TableHead className="w-10"></TableHead>
+              <TableHead className="w-48 min-w-48">Categoria</TableHead>
+              <TableHead className="min-w-[420px]">Descrição</TableHead>
+              <TableHead className="w-24">Un.</TableHead>
+              <TableHead className="w-24 text-right">Qtd.</TableHead>
+              <TableHead className="w-32 text-right">€ Cliente</TableHead>
+              <TableHead className="w-32 text-right">€ Custo</TableHead>
+              <TableHead className="w-32 text-right">Total €</TableHead>
+              <TableHead className="w-24">Origem</TableHead>
+              <TableHead className="w-28"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -449,16 +450,16 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
                 const rowTotal =
                   qty != null && preco != null ? Math.round(qty * preco) : null;
                 return (
-                  <TableRow key={l.localId}>
-                    <TableCell className="text-xs text-muted-foreground tabular-nums">
+                  <TableRow key={l.localId} className="align-top">
+                    <TableCell className="pt-3 text-xs text-muted-foreground tabular-nums">
                       {i + 1}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="pt-2">
                       <Select
                         value={l.categoria}
                         onValueChange={(v) => updateLinha(l.localId, { categoria: v })}
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger className="w-full whitespace-normal text-left">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -470,13 +471,20 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell>
-                      <Input
+                    <TableCell className="pt-2">
+                      <Textarea
+                        rows={2}
                         value={l.descricao}
                         onChange={(e) => updateLinha(l.localId, { descricao: e.target.value })}
+                        className="min-h-[60px] resize-y whitespace-pre-wrap break-words text-sm leading-relaxed"
                       />
+                      {l.notas ? (
+                        <p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">
+                          {l.notas}
+                        </p>
+                      ) : null}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="pt-2">
                       <Select
                         value={l.unidade}
                         onValueChange={(v) => updateLinha(l.localId, { unidade: v })}
@@ -493,7 +501,7 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="pt-2">
                       <Input
                         className="text-right tabular-nums"
                         inputMode="decimal"
@@ -501,7 +509,7 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
                         onChange={(e) => updateLinha(l.localId, { quantidadeStr: e.target.value })}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="pt-2">
                       <Input
                         className="text-right tabular-nums"
                         inputMode="decimal"
@@ -509,7 +517,7 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
                         onChange={(e) => updateLinha(l.localId, { precoClienteStr: e.target.value })}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="pt-2">
                       <Input
                         className="text-right tabular-nums"
                         inputMode="decimal"
@@ -518,15 +526,15 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
                         placeholder="—"
                       />
                     </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">
+                    <TableCell className="pt-3 text-right font-mono tabular-nums">
                       {rowTotal == null ? "—" : formatCents(rowTotal)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="pt-3">
                       <Badge variant={origemVariant[l.origem]}>
                         {origemLabel[l.origem]}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="pt-2">
                       <div className="flex gap-1">
                         <button
                           type="button"

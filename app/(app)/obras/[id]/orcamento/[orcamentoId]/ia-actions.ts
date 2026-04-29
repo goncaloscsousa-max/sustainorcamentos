@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { asc, eq, max } from "drizzle-orm";
+import { and, asc, eq, max } from "drizzle-orm";
 
 import { auth } from "@/auth";
 import { analisarObra } from "@/lib/ai/analise-obra";
@@ -18,6 +18,15 @@ import {
 import { readUpload } from "@/lib/uploads/storage";
 import { xlsxToText } from "@/lib/uploads/xlsx-to-text";
 import { labelForTipoObra } from "@/lib/format";
+import {
+  buildRegionalContextForAI,
+  labelForDistrito,
+} from "@/lib/data/portugal-locations";
+import {
+  briefingToPrompt,
+  tryParseBriefing,
+} from "@/lib/data/briefing-obra";
+import { resizeForAI } from "@/lib/ai/resize-image";
 
 const MAX_IMAGES_PER_ANALYSIS = 8;
 const MAX_PDFS_PER_ANALYSIS = 3;
@@ -54,6 +63,12 @@ export type AnaliseOutcomeUI =
 export async function analisarObraAction(
   orcamentoId: string,
 ): Promise<AnaliseOutcomeUI> {
+  const runId = crypto.randomUUID().slice(0, 8);
+  const log = (event: string, extra?: unknown) =>
+    console.log(`[ia.analise ${runId}] ${event}`, extra ?? "");
+  const errorLog = (event: string, extra?: unknown) =>
+    console.error(`[ia.analise ${runId}] ${event}`, extra ?? "");
+
   const session = await auth();
   if (!session?.user) return { ok: false, error: "Não autenticado." };
 
@@ -66,6 +81,8 @@ export async function analisarObraAction(
     where: eq(obras.id, orcamento.obraId),
   });
   if (!obra) return { ok: false, error: "Obra não encontrada." };
+
+  log("start", { orcamentoId, obraId: obra.id });
 
   const ficheiros = await db
     .select()
@@ -84,6 +101,7 @@ export async function analisarObraAction(
     mediaType: ImageMime;
     data: Buffer;
     label?: string;
+    kind?: "atual" | "referencia";
   }[] = [];
   const pdfs: {
     mediaType: "application/pdf";
@@ -98,10 +116,18 @@ export async function analisarObraAction(
       const mt = imageMime(f.mimeType);
       if (!mt) continue;
       try {
-        const buf = await readUpload(f.storagePath);
-        images.push({ mediaType: mt, data: buf, label: f.nomeOriginal });
+        const raw = await readUpload(f.storagePath);
+        const resized = await resizeForAI(raw, mt);
+        const kind: "atual" | "referencia" =
+          f.tipo === "referencia_final" ? "referencia" : "atual";
+        images.push({
+          mediaType: resized.mediaType,
+          data: resized.buffer,
+          label: f.nomeOriginal,
+          kind,
+        });
       } catch (err) {
-        console.error("[ia.readImage]", f.storagePath, err);
+        errorLog("readImage failed", { storagePath: f.storagePath, err });
       }
     } else if (f.mimeType === "application/pdf") {
       if (pdfs.length >= MAX_PDFS_PER_ANALYSIS) continue;
@@ -113,7 +139,7 @@ export async function analisarObraAction(
           label: f.nomeOriginal,
         });
       } catch (err) {
-        console.error("[ia.readPdf]", f.storagePath, err);
+        errorLog("readPdf failed", { storagePath: f.storagePath, err });
       }
     } else if (
       f.tipo === "mtq" ||
@@ -125,19 +151,33 @@ export async function analisarObraAction(
         const texto = await xlsxToText(buf);
         mtqTexto += `\n\n## ${f.nomeOriginal}\n${texto}`;
       } catch (err) {
-        console.error("[ia.readXlsx]", f.storagePath, err);
+        errorLog("readXlsx failed", { storagePath: f.storagePath, err });
       }
     }
   }
+
+  const regiaoContexto = buildRegionalContextForAI(obra.distrito, obra.cidade);
+  const localLabel = obra.distrito
+    ? `${obra.cidade ? `${obra.cidade}, ` : ""}${labelForDistrito(obra.distrito)}`
+    : null;
+
+  const briefing = tryParseBriefing(obra.briefing);
+  const briefingTexto = briefing ? briefingToPrompt(briefing) : null;
 
   const contexto = [
     `Obra: ${obra.titulo}`,
     `Tipo: ${labelForTipoObra(obra.tipo)}`,
     `Morada: ${obra.moradaObra}`,
-    obra.notas ? `Notas do orçamentista: ${obra.notas}` : null,
+    localLabel ? `Região: ${localLabel}` : null,
+    regiaoContexto || null,
+    briefingTexto,
+    !briefingTexto && obra.descricao
+      ? `Descrição livre (legacy, sem briefing estruturado):\n${obra.descricao}`
+      : null,
+    obra.notas ? `Notas internas: ${obra.notas}` : null,
   ]
     .filter(Boolean)
-    .join("\n");
+    .join("\n\n");
 
   let outcome;
   try {
@@ -148,41 +188,76 @@ export async function analisarObraAction(
       mtqTexto: mtqTexto.trim() || undefined,
     });
   } catch (err) {
-    console.error("[ia.analisarObra]", err);
-    const msg = err instanceof Error ? err.message : "Erro a chamar a IA.";
-    return { ok: false, error: msg };
+    errorLog("anthropic call failed", err);
+    return {
+      ok: false,
+      error:
+        "A IA não conseguiu analisar agora. Tenta de novo dentro de alguns segundos.",
+    };
   }
 
   const { parsed } = outcome;
 
-  // Próxima ordem (não sobrescrevemos linhas manuais existentes)
-  const [maxRow] = await db
-    .select({ m: max(linhasOrcamento.ordem) })
-    .from(linhasOrcamento)
-    .where(eq(linhasOrcamento.orcamentoId, orcamentoId));
-  let nextOrdem = (maxRow?.m ?? -1) + 1;
-
   try {
     db.transaction((tx) => {
+      // Idempotência: cada execução de "Analisar com IA" substitui o lote
+      // anterior — apaga linhas com origem 'ia_sugestao' e riscos não
+      // resolvidos deste orçamento. Linhas manuais/da tabela e riscos já
+      // marcados como resolvidos são preservados (são histórico útil).
+      tx.delete(linhasOrcamento)
+        .where(
+          and(
+            eq(linhasOrcamento.orcamentoId, orcamentoId),
+            eq(linhasOrcamento.origem, "ia_sugestao"),
+          ),
+        )
+        .run();
+      tx.delete(riscosIdentificados)
+        .where(
+          and(
+            eq(riscosIdentificados.orcamentoId, orcamentoId),
+            eq(riscosIdentificados.resolvido, false),
+          ),
+        )
+        .run();
+
+      // Próxima ordem AFTER delete — não sobrescrevemos linhas manuais.
+      const [maxRowTx] = tx
+        .select({ m: max(linhasOrcamento.ordem) })
+        .from(linhasOrcamento)
+        .where(eq(linhasOrcamento.orcamentoId, orcamentoId))
+        .all();
+      let nextOrdem = (maxRowTx?.m ?? -1) + 1;
+
       if (parsed.trabalhos_propostos.length > 0) {
         tx.insert(linhasOrcamento)
           .values(
-            parsed.trabalhos_propostos.map((t) => ({
-              orcamentoId,
-              categoria: t.categoria,
-              ordem: nextOrdem++,
-              descricao: t.descricao,
-              unidade: t.unidade,
-              quantidade: t.quantidade_sugerida,
-              precoClienteUnitCents: 0,
-              custoInternoUnitCents: null,
-              totalClienteCents: 0,
-              totalCustoInternoCents: 0,
-              origem: "ia_sugestao" as const,
-              tabelaPrecoId: null,
-              notas:
-                t.justificacao + (t.confianca ? ` · confiança ${t.confianca}` : ""),
-            })),
+            parsed.trabalhos_propostos.map((t) => {
+              const precoCents = Math.round(
+                (t.preco_cliente_unit_eur ?? 0) * 100,
+              );
+              const custoCents =
+                t.custo_interno_unit_eur > 0
+                  ? Math.round(t.custo_interno_unit_eur * 100)
+                  : null;
+              const qty = t.quantidade_sugerida;
+              return {
+                orcamentoId,
+                categoria: t.categoria,
+                ordem: nextOrdem++,
+                descricao: t.descricao,
+                unidade: t.unidade,
+                quantidade: qty,
+                precoClienteUnitCents: precoCents,
+                custoInternoUnitCents: custoCents,
+                totalClienteCents: Math.round(qty * precoCents),
+                totalCustoInternoCents:
+                  custoCents != null ? Math.round(qty * custoCents) : 0,
+                origem: "ia_sugestao" as const,
+                tabelaPrecoId: null,
+                notas: t.justificacao,
+              };
+            }),
           )
           .run();
       }
@@ -211,18 +286,66 @@ export async function analisarObraAction(
         .values({
           orcamentoId,
           tipo: "extracao_trabalhos",
-          inputResumo: `imgs:${images.length} pdfs:${pdfs.length} mtq:${mtqTexto.length > 0 ? "sim" : "não"}`,
+          inputResumo: `run:${runId} imgs:${images.length} pdfs:${pdfs.length} mtq:${mtqTexto.length > 0 ? "sim" : "não"}`,
           outputRaw: parsed,
           tokensInput: outcome.tokensInput,
           tokensOutput: outcome.tokensOutput,
           custoEstimadoCents: outcome.custoEstimadoCents,
         })
         .run();
+
+      // Recalcular totais do orçamento com as novas linhas
+      const allLinhas = tx
+        .select({
+          q: linhasOrcamento.quantidade,
+          pCliente: linhasOrcamento.precoClienteUnitCents,
+          cInterno: linhasOrcamento.custoInternoUnitCents,
+        })
+        .from(linhasOrcamento)
+        .where(eq(linhasOrcamento.orcamentoId, orcamentoId))
+        .all();
+
+      let subtotalCents = 0;
+      let custoInternoTotalCents = 0;
+      for (const l of allLinhas) {
+        subtotalCents += Math.round(l.q * l.pCliente);
+        if (l.cInterno != null) {
+          custoInternoTotalCents += Math.round(l.q * l.cInterno);
+        }
+      }
+      const ivaTotalCents = Math.round(
+        (subtotalCents * orcamento.ivaPercentagemBps) / 10000,
+      );
+      const totalCents = subtotalCents + ivaTotalCents;
+      const margemTeoricaBps =
+        subtotalCents > 0
+          ? Math.round(
+              ((subtotalCents - custoInternoTotalCents) / subtotalCents) *
+                10000,
+            )
+          : 0;
+
+      tx.update(orcamentos)
+        .set({
+          subtotalCents,
+          ivaTotalCents,
+          totalCents,
+          custoInternoTotalCents,
+          margemTeoricaBps,
+        })
+        .where(eq(orcamentos.id, orcamentoId))
+        .run();
     });
   } catch (err) {
-    console.error("[ia.applyAnalise]", err);
+    errorLog("applyAnalise failed", err);
     return { ok: false, error: "Erro a aplicar resultados da análise." };
   }
+
+  log("done", {
+    trabalhos: parsed.trabalhos_propostos.length,
+    riscos: parsed.riscos.length,
+    custoCents: outcome.custoEstimadoCents,
+  });
 
   revalidatePath(`/obras/${obra.id}/orcamento/${orcamentoId}`);
 
@@ -264,12 +387,31 @@ export async function sugerirPrecoAction(input: {
     return { ok: false, error: "Indica a unidade (m², ml, un, ...)." };
   }
 
+  // Carrega região da obra associada ao orçamento para contextualizar preço
+  let regiaoContexto: string | null = null;
+  try {
+    const orc = await db.query.orcamentos.findFirst({
+      where: eq(orcamentos.id, input.orcamentoId),
+    });
+    if (orc) {
+      const obra = await db.query.obras.findFirst({
+        where: eq(obras.id, orc.obraId),
+      });
+      if (obra?.distrito) {
+        regiaoContexto = buildRegionalContextForAI(obra.distrito, obra.cidade);
+      }
+    }
+  } catch (err) {
+    console.error("[ia.sugestao.regiao]", err);
+  }
+
   try {
     const out = await sugerirPreco({
       descricao: input.descricao,
       unidade: input.unidade,
       categoria: input.categoria ?? null,
       quantidade: input.quantidade ?? null,
+      regiaoContexto,
     });
 
     // Regista no histórico, mesmo sem aplicar (útil para debug + custo)

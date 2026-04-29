@@ -114,12 +114,13 @@ export default async function OrcamentoEditorPage({
         </div>
       </header>
 
+      <RiscosPanel riscos={riscos} />
+
       <OrcamentoEditor
+        key={`linhas-${linhas.length}`}
         orcamento={orcamento}
         linhas={linhas}
       />
-
-      <RiscosPanel riscos={riscos} />
     </div>
   );
 }

@@ -65,9 +65,8 @@ export function AnaliseIAButton({ orcamentoId }: Props) {
           <AlertDialogDescription>
             Vamos enviar as fotos, MTQ e projetos desta obra ao Claude Sonnet
             4.6. A resposta é aplicada ao orçamento como linhas novas (origem
-            <span className="font-medium"> IA</span>, preço 0 — podes ajustar
-            depois) e riscos identificados. A chamada tem custo (tipicamente
-            alguns cêntimos).
+            <span className="font-medium"> IA</span>, com preço estimado que
+            podes ajustar) e riscos identificados.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

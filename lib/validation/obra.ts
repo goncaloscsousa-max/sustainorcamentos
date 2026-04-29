@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+import { DISTRITO_VALUES } from "@/lib/data/portugal-locations";
+import { briefingObraSchema } from "@/lib/data/briefing-obra";
+
 import { optionalText } from "./shared";
 
 const tipoObra = z.enum([
@@ -29,6 +32,11 @@ const optionalDate = z.preprocess(
     .nullable(),
 );
 
+const optionalDistrito = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+  z.enum(DISTRITO_VALUES).nullable(),
+);
+
 export const obraCreateSchema = z.object({
   clienteId: z.string().uuid({ message: "Escolher um cliente" }),
   titulo: z.string().trim().min(3, "Título obrigatório (mín. 3 caracteres)"),
@@ -37,6 +45,10 @@ export const obraCreateSchema = z.object({
   dataVisita: optionalDate,
   dataInicioPrevista: optionalDate,
   dataConclusaoPrevista: optionalDate,
+  distrito: optionalDistrito,
+  cidade: optionalText,
+  descricao: optionalText,
+  briefing: briefingObraSchema,
   notas: optionalText,
 });
 

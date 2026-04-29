@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import Anthropic from "@anthropic-ai/sdk";
 
 /**
@@ -8,11 +11,43 @@ import Anthropic from "@anthropic-ai/sdk";
  *   Se precisares de experimentar outro, passa `model` explícito.
  */
 
+// cache-busted ao hot-reload (v2)
 let _client: Anthropic | null = null;
+
+function readKeyFromDotenv(): string | null {
+  try {
+    const p = path.resolve(process.cwd(), ".env");
+    const txt = fs.readFileSync(p, "utf8");
+    for (const raw of txt.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("=");
+      if (eq === -1) continue;
+      const key = line.slice(0, eq).trim();
+      if (key !== "ANTHROPIC_API_KEY") continue;
+      let val = line.slice(eq + 1).trim();
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
+        val = val.slice(1, -1);
+      }
+      return val || null;
+    }
+  } catch {
+    // ignorado
+  }
+  return null;
+}
 
 function getClient(): Anthropic {
   if (_client) return _client;
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  let apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!apiKey) {
+    // No Windows, uma env var do sistema vazia sobrescreve o .env —
+    // lemos o ficheiro diretamente como fallback.
+    apiKey = readKeyFromDotenv() ?? undefined;
+  }
   if (!apiKey) {
     throw new Error(
       "ANTHROPIC_API_KEY não está definida no .env. Adiciona-a antes de usar funcionalidades de IA.",

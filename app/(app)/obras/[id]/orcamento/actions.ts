@@ -10,6 +10,7 @@ import {
   saveOrcamentoSchema,
   type SaveOrcamentoInput,
 } from "@/lib/validation/orcamento";
+import { requireUser } from "@/lib/auth/require-user";
 
 /**
  * Totais calculados em TS (convenção em ADR 0001).
@@ -59,6 +60,8 @@ function computeTotals(
 }
 
 export async function createOrcamentoAction(obraId: string): Promise<void> {
+  await requireUser();
+
   const obra = await db.query.obras.findFirst({ where: eq(obras.id, obraId) });
   if (!obra) throw new Error("Obra não encontrada.");
 
@@ -95,6 +98,12 @@ export async function saveOrcamentoAction(
   orcamentoId: string,
   input: unknown,
 ): Promise<SaveOrcamentoResult> {
+  try {
+    await requireUser();
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Não autenticado." };
+  }
+
   const parsed = saveOrcamentoSchema.safeParse(input);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
@@ -172,6 +181,8 @@ export async function saveOrcamentoAction(
 export async function duplicateOrcamentoAction(
   orcamentoId: string,
 ): Promise<void> {
+  await requireUser();
+
   const existing = await db.query.orcamentos.findFirst({
     where: eq(orcamentos.id, orcamentoId),
     with: { linhas: true },
@@ -244,6 +255,8 @@ export async function duplicateOrcamentoAction(
 export async function deleteOrcamentoAction(
   orcamentoId: string,
 ): Promise<void> {
+  await requireUser();
+
   const existing = await db.query.orcamentos.findFirst({
     where: eq(orcamentos.id, orcamentoId),
   });
