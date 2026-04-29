@@ -179,6 +179,13 @@ export default async function ObraDashboardPage({
   })();
 
   const briefingPreenchido = !!obra.briefing;
+  const temFicheiros = ficheiros.length > 0;
+  const podeGerarSugestoes = briefingPreenchido && temFicheiros;
+  const motivoBloqueioSugestoes = !briefingPreenchido
+    ? "Preenche primeiro o briefing da obra (Editar obra → 7 secções)."
+    : !temFicheiros
+      ? "Carrega pelo menos uma foto ou ficheiro de referência antes de gerar sugestões — a IA usa-os para calibrar materiais e estilo."
+      : null;
 
   const createOrcBound = createOrcamentoAction.bind(null, obra.id);
 
@@ -582,7 +589,8 @@ export default async function ObraDashboardPage({
         sugestoes={sugestoesParsed?.sugestoes ?? null}
         observacoes={sugestoesParsed?.observacoes ?? null}
         atualizadoEm={obra.sugestoesMateriaisAtualizadasEm ?? null}
-        podeGerar={briefingPreenchido}
+        podeGerar={podeGerarSugestoes}
+        motivoBloqueio={motivoBloqueioSugestoes}
       />
 
       {obra.notas ? (

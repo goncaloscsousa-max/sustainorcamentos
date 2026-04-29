@@ -27,9 +27,29 @@ export function FasesFlowchart({
   estadoObra,
   prazoDesejadoSemanas,
 }: Props) {
+  const temOrcamento = linhasOrcamentoMaisRecente.length > 0;
+
+  // Sem linhas no orçamento, o fluxograma seria especulativo. Mostramos só
+  // um placeholder a explicar o que falta para activar — evita confundir o
+  // utilizador com fases-fantasma como se fossem reais.
+  if (!temOrcamento) {
+    return (
+      <section className="rounded-md border border-dashed bg-muted/20">
+        <div className="flex flex-col gap-2 px-5 py-6">
+          <h2 className="text-base font-semibold">Fluxograma de execução</h2>
+          <p className="text-sm text-muted-foreground">
+            Aparece quando o orçamento tiver linhas — corre primeiro
+            <span className="font-medium"> &ldquo;Analisar com IA&rdquo; </span>
+            no orçamento ou adiciona linhas manualmente. As fases são
+            derivadas das categorias dos trabalhos.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   const fases = buildFasesFromLinhas(linhasOrcamentoMaisRecente, estadoObra);
   const duracoes = estimarDuracoesSemanas(fases, prazoDesejadoSemanas);
-  const temOrcamento = linhasOrcamentoMaisRecente.length > 0;
 
   return (
     <section className="rounded-md border">
@@ -37,12 +57,10 @@ export function FasesFlowchart({
         <div className="flex flex-col gap-1">
           <h2 className="text-base font-semibold">Fluxograma de execução</h2>
           <p className="text-sm text-muted-foreground">
-            {temOrcamento
-              ? "Sequência canónica das fases, derivada das categorias do orçamento mais recente."
-              : "Modelo padrão Sustain. Cria um orçamento para ver fases reais com pesos e trabalhos chave."}
+            Sequência canónica das fases, derivada das categorias do orçamento mais recente.
           </p>
         </div>
-        {prazoDesejadoSemanas != null && temOrcamento ? (
+        {prazoDesejadoSemanas != null ? (
           <div className="rounded-md bg-muted px-3 py-1 text-xs text-muted-foreground">
             Prazo estimado: <span className="font-mono">{prazoDesejadoSemanas} sem.</span>
           </div>

@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import {
   analisesIA,
+  ficheirosObra,
   linhasOrcamento,
   obras,
   orcamentos,
@@ -40,8 +41,8 @@ export async function sugerirMateriaisAction(
   const obra = await db.query.obras.findFirst({ where: eq(obras.id, obraId) });
   if (!obra) return { ok: false, error: "Obra não encontrada." };
 
-  log("start", { obraId });
-
+  // Defesa em profundidade: o botão na UI também valida estes pré-requisitos,
+  // mas validamos aqui para impedir bypass via curl directo à action.
   const briefing = tryParseBriefing(obra.briefing);
   if (!briefing) {
     return {
@@ -50,6 +51,20 @@ export async function sugerirMateriaisAction(
         "Esta obra ainda não tem briefing estruturado preenchido — edita-a primeiro.",
     };
   }
+
+  const [{ count: numFicheiros }] = (await db
+    .select({ count: sql<number>`count(*)` })
+    .from(ficheirosObra)
+    .where(eq(ficheirosObra.obraId, obraId))) as { count: number }[];
+  if (Number(numFicheiros) === 0) {
+    return {
+      ok: false,
+      error:
+        "Carrega primeiro fotos do estado actual (ou referências) — a IA precisa de inputs visuais para sugerir materiais coerentes.",
+    };
+  }
+
+  log("start", { obraId });
 
   // Resumo de trabalhos do orçamento mais recente (se existir)
   const [orc] = await db

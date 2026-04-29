@@ -74,6 +74,31 @@ export type AnaliseOutcome = {
   custoEstimadoCents: number;
 };
 
+/**
+ * Exception lançada quando a chamada à Anthropic completou (tokens cobrados)
+ * mas o output não é utilizável (parse falhou, max_tokens irrecuperável, etc).
+ *
+ * Carrega o `usage` para o caller poder registar em `analises_ia` o custo
+ * mesmo em falha — caso contrário ficamos cegos a falhas IA caras.
+ *
+ * `publicMessage` é pt-PT user-friendly e pode ser mostrada na UI.
+ * `internalDetail` é detalhe técnico só para logs.
+ */
+export class AnaliseAnthropicError extends Error {
+  constructor(
+    public readonly publicMessage: string,
+    public readonly internalDetail: string,
+    public readonly tokensInput: number,
+    public readonly tokensOutput: number,
+    public readonly custoEstimadoCents: number,
+    public readonly stopReason: string | null,
+    public readonly rawSnippet: string,
+  ) {
+    super(`${publicMessage} | ${internalDetail}`);
+    this.name = "AnaliseAnthropicError";
+  }
+}
+
 function extractJson(text: string): string {
   const trimmed = text.trim();
   // Fence completa ```json ... ```
@@ -276,7 +301,7 @@ async function callAnthropic(
 
   return client.messages.create({
     model: DEFAULT_MODEL,
-    max_tokens: 12000,
+    max_tokens: 16000,
     system: SYSTEM_ANALISE_OBRA,
     messages: [{ role: "user", content }],
   });
@@ -330,40 +355,73 @@ export async function analisarObra(
   const raw = textBlocks.map((b) => b.text).join("\n");
   const stopReason = response.stop_reason ?? null;
 
+  // Usage já é conhecido neste ponto — preserva para reportar mesmo em falha
+  const tokensInput = response.usage.input_tokens;
+  const tokensOutput = response.usage.output_tokens;
+  const custoEstimadoCents = estimarCustoCents(tokensInput, tokensOutput);
+
   const jsonText = extractJson(raw);
   let parsed: AnaliseObraResult;
   let truncatedRepair = false;
+  let truncatedReason: "max_tokens" | "json_invalid" | null = null;
   try {
     parsed = analiseObraSchema.parse(JSON.parse(jsonText));
   } catch (errParse) {
-    // Se a Anthropic disse explicitamente "max_tokens", a resposta foi
-    // cortada — tentar reparar é arriscado (pode descartar trabalhos no fim).
-    // Lança erro claro para o caller decidir (mostrar mensagem útil ao
-    // utilizador a sugerir menos imagens/PDFs).
-    if (stopReason === "max_tokens") {
-      throw new Error(
-        "A IA atingiu o limite de tokens da resposta — a análise ficou incompleta. Tenta de novo com menos fotos ou PDFs, ou divide a obra em partes.",
-      );
-    }
-
-    // Stop reason normal mas JSON inválido: tenta reparar como último recurso.
+    // Tenta reparar JSON truncado/inválido. Funciona tanto para
+    // stop_reason='max_tokens' como para JSON malformado por outras razões.
+    // Se conseguirmos parsear o reparado, aplica + flag truncatedRepair=true
+    // (uma nota é adicionada a observacoes_gerais a avisar o utilizador).
     const repaired = tryRepairTruncatedJson(jsonText);
     if (repaired) {
       try {
         parsed = analiseObraSchema.parse(JSON.parse(repaired));
         truncatedRepair = true;
+        truncatedReason =
+          stopReason === "max_tokens" ? "max_tokens" : "json_invalid";
       } catch {
-        throw new Error(
-          `Resposta da IA não é JSON válido. Raw: ${raw.slice(0, 400)}…\nErro: ${
-            errParse instanceof Error ? errParse.message : String(errParse)
-          }`,
+        // Repair também falhou — lança AnaliseAnthropicError com usage
+        // para o caller registar custo em analises_ia.
+        if (stopReason === "max_tokens") {
+          throw new AnaliseAnthropicError(
+            "A IA atingiu o limite de tokens da resposta e não foi possível recuperar nada parsável. Tenta com menos fotos/PDFs ou divide a obra em fases.",
+            `repair failed after max_tokens; raw=${raw.slice(0, 400)}`,
+            tokensInput,
+            tokensOutput,
+            custoEstimadoCents,
+            stopReason,
+            raw.slice(0, 400),
+          );
+        }
+        throw new AnaliseAnthropicError(
+          "A IA devolveu uma resposta que não conseguimos interpretar. Tenta de novo dentro de alguns segundos.",
+          `JSON invalid + repair failed: ${errParse instanceof Error ? errParse.message : String(errParse)}; raw=${raw.slice(0, 400)}`,
+          tokensInput,
+          tokensOutput,
+          custoEstimadoCents,
+          stopReason,
+          raw.slice(0, 400),
         );
       }
     } else {
-      throw new Error(
-        `Resposta da IA não é JSON válido. Raw: ${raw.slice(0, 400)}…\nErro: ${
-          errParse instanceof Error ? errParse.message : String(errParse)
-        }`,
+      if (stopReason === "max_tokens") {
+        throw new AnaliseAnthropicError(
+          "A IA atingiu o limite de tokens da resposta e o output não tem estrutura recuperável. Tenta com menos fotos/PDFs.",
+          `no json structure to repair after max_tokens; raw=${raw.slice(0, 400)}`,
+          tokensInput,
+          tokensOutput,
+          custoEstimadoCents,
+          stopReason,
+          raw.slice(0, 400),
+        );
+      }
+      throw new AnaliseAnthropicError(
+        "A IA devolveu uma resposta inesperada. Tenta de novo.",
+        `no json structure; ${errParse instanceof Error ? errParse.message : String(errParse)}; raw=${raw.slice(0, 400)}`,
+        tokensInput,
+        tokensOutput,
+        custoEstimadoCents,
+        stopReason,
+        raw.slice(0, 400),
       );
     }
   }
@@ -381,9 +439,15 @@ export async function analisarObra(
     );
   }
   if (truncatedRepair) {
-    pdfNotes.push(
-      "Nota: a resposta da IA foi truncada e reparada automaticamente — o último trabalho proposto pode estar incompleto. Revê manualmente.",
-    );
+    if (truncatedReason === "max_tokens") {
+      pdfNotes.push(
+        "Nota: a IA atingiu o limite de tokens — o último trabalho proposto pode estar incompleto. Revê manualmente as últimas linhas e considera dividir esta obra em fases para obter análise mais detalhada.",
+      );
+    } else {
+      pdfNotes.push(
+        "Nota: a resposta da IA veio truncada e foi reparada automaticamente — o último item pode estar incompleto. Revê manualmente.",
+      );
+    }
   }
   if (pdfNotes.length > 0) {
     const prefix = parsed.observacoes_gerais.trim();
@@ -395,11 +459,8 @@ export async function analisarObra(
   return {
     parsed,
     raw,
-    tokensInput: response.usage.input_tokens,
-    tokensOutput: response.usage.output_tokens,
-    custoEstimadoCents: estimarCustoCents(
-      response.usage.input_tokens,
-      response.usage.output_tokens,
-    ),
+    tokensInput,
+    tokensOutput,
+    custoEstimadoCents,
   };
 }

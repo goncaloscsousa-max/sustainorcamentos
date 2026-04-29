@@ -54,9 +54,12 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 
-# A app só pode escrever na pasta partilhada (DB, uploads, backups, logs).
-# Cobre /srv/sustain-orcamentos/shared/{data,uploads,backups,logs} de uma vez.
+# A app pode escrever na pasta partilhada (DB, uploads, backups, logs)
+# e dentro da release activa em .next/cache/ (Next.js precisa de o fazer
+# em runtime para Image Optimization e revalidação on-demand).
+# Cobre /srv/sustain-orcamentos/shared/{data,uploads,backups,logs} + .next/cache.
 ReadWritePaths=/srv/sustain-orcamentos/shared
+ReadWritePaths=/srv/sustain-orcamentos/releases
 
 # Limites razoáveis para um Node moderado.
 LimitNOFILE=4096

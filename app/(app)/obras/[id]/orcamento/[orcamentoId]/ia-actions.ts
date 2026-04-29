@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 import { and, asc, eq, max } from "drizzle-orm";
 
 import { auth } from "@/auth";
-import { analisarObra } from "@/lib/ai/analise-obra";
+import {
+  AnaliseAnthropicError,
+  analisarObra,
+} from "@/lib/ai/analise-obra";
 import { sugerirPreco } from "@/lib/ai/sugestao-preco";
 import { db } from "@/lib/db";
 import {
@@ -189,6 +192,30 @@ export async function analisarObraAction(
     });
   } catch (err) {
     errorLog("anthropic call failed", err);
+
+    // Se a Anthropic chegou a responder mas o output não foi utilizável,
+    // ainda assim regista os tokens em analises_ia para tracking de custo.
+    if (err instanceof AnaliseAnthropicError) {
+      try {
+        await db.insert(analisesIA).values({
+          orcamentoId,
+          tipo: "extracao_trabalhos",
+          inputResumo: `run:${runId} FAILED imgs:${images.length} pdfs:${pdfs.length} stop:${err.stopReason ?? "?"}`,
+          outputRaw: {
+            error: err.publicMessage,
+            internalDetail: err.internalDetail,
+            rawSnippet: err.rawSnippet,
+          },
+          tokensInput: err.tokensInput,
+          tokensOutput: err.tokensOutput,
+          custoEstimadoCents: err.custoEstimadoCents,
+        });
+      } catch (logErr) {
+        errorLog("falha a registar analise_ia em failure", logErr);
+      }
+      return { ok: false, error: err.publicMessage };
+    }
+
     return {
       ok: false,
       error:

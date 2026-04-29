@@ -26,6 +26,7 @@ type Props = {
   observacoes: string | null;
   atualizadoEm: Date | null;
   podeGerar: boolean;
+  motivoBloqueio: string | null;
 };
 
 export function SugestoesMateriais({
@@ -34,6 +35,7 @@ export function SugestoesMateriais({
   observacoes,
   atualizadoEm,
   podeGerar,
+  motivoBloqueio,
 }: Props) {
   const [isPending, start] = useTransition();
 
@@ -80,11 +82,8 @@ export function SugestoesMateriais({
           variant={sugestoes ? "secondary" : "default"}
           onClick={handleGerar}
           disabled={isPending || !podeGerar}
-          title={
-            podeGerar
-              ? undefined
-              : "Preenche o briefing da obra antes de gerar sugestões."
-          }
+          aria-describedby={motivoBloqueio ? "sugestoes-motivo" : undefined}
+          title={motivoBloqueio ?? undefined}
         >
           {isPending ? (
             <RefreshCw className="size-4 animate-spin" aria-hidden />
@@ -101,11 +100,20 @@ export function SugestoesMateriais({
         </Button>
       </header>
 
+      {motivoBloqueio ? (
+        <p
+          id="sugestoes-motivo"
+          className="border-b bg-amber-50/60 px-5 py-2 text-xs text-amber-800 dark:bg-amber-950/20 dark:text-amber-300"
+        >
+          {motivoBloqueio}
+        </p>
+      ) : null}
+
       {sugestoes == null || sugestoes.length === 0 ? (
         <div className="px-5 py-10 text-center text-sm text-muted-foreground">
           {podeGerar
-            ? "Sem sugestões ainda. Clica em \"Gerar sugestões\" para a IA propor materiais e marcas calibrados ao briefing."
-            : "Preenche primeiro o briefing da obra."}
+            ? "Sem sugestões ainda. Clica em \"Gerar sugestões\" para a IA propor materiais e marcas calibradas ao briefing + ficheiros."
+            : (motivoBloqueio ?? "Pré-requisitos em falta para gerar sugestões.")}
         </div>
       ) : (
         <div className="flex flex-col divide-y">
