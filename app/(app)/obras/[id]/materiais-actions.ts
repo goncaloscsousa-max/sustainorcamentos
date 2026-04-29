@@ -6,7 +6,6 @@ import { asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   analisesIA,
-  ficheirosObra,
   linhasOrcamento,
   obras,
   orcamentos,
@@ -52,19 +51,38 @@ export async function sugerirMateriaisAction(
     };
   }
 
-  const [{ count: numFicheiros }] = (await db
-    .select({ count: sql<number>`count(*)` })
-    .from(ficheirosObra)
-    .where(eq(ficheirosObra.obraId, obraId))) as { count: number }[];
-  if (Number(numFicheiros) === 0) {
+  // Verifica que existe orçamento mais recente com pelo menos 1 linha.
+  // Sem linhas no orçamento, as sugestões de materiais ficam especulativas
+  // (não casam com o que foi orçado). Aceita linhas de qualquer origem
+  // (IA, tabela ou manual).
+  const [orcMaisRecente] = await db
+    .select({ id: orcamentos.id })
+    .from(orcamentos)
+    .where(eq(orcamentos.obraId, obraId))
+    .orderBy(desc(orcamentos.versao))
+    .limit(1);
+  if (!orcMaisRecente) {
     return {
       ok: false,
       error:
-        "Carrega primeiro fotos do estado actual (ou referências) — a IA precisa de inputs visuais para sugerir materiais coerentes.",
+        "Cria primeiro um orçamento e adiciona linhas (manualmente ou via Analisar com IA) — as sugestões usam-nas como referência.",
+    };
+  }
+  const [{ count: numLinhas }] = (await db
+    .select({ count: sql<number>`count(*)` })
+    .from(linhasOrcamento)
+    .where(eq(linhasOrcamento.orcamentoId, orcMaisRecente.id))) as {
+    count: number;
+  }[];
+  if (Number(numLinhas) === 0) {
+    return {
+      ok: false,
+      error:
+        "O orçamento mais recente não tem linhas. Corre primeiro \"Analisar com IA\" no orçamento (ou adiciona linhas manualmente).",
     };
   }
 
-  log("start", { obraId });
+  log("start", { obraId, orcamentoId: orcMaisRecente.id, linhas: Number(numLinhas) });
 
   // Resumo de trabalhos do orçamento mais recente (se existir)
   const [orc] = await db

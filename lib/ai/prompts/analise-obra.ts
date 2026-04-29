@@ -87,6 +87,14 @@ Regras:
     · Substituição ramais canalização (vg para cozinha ou WC típico): cliente ≈ 600–1 200 €, custo ≈ 400–800 €.
   Valores muito fora destes intervalos têm de ser justificados explicitamente em \`justificacao\`.
 - NUNCA devolvas valores como 1850 ou 4800 para um m² — isso seriam preços por centenas de m². Se te apeteceres escrever um valor > 500 € por m², pára e reconsidera.
+- ANTI-EXEMPLOS (não faças isto, são confusões cents/EUR clássicas):
+    · Pintura m²: 850 NÃO. Certo: 8.50 ou 9 (= 8.50–9 € / m²).
+    · Cerâmico assentamento m²: 3500 NÃO. Certo: 35 (= 35 € / m²).
+    · Instalação eléctrica vg: 900000 NÃO. Certo: 9000–15000 (= 9 000–15 000 € global).
+    · Capoto m²: 7140 NÃO (isso é 7 140 €/m², impossível). Certo: 50–70 (= 50–70 € / m²).
+    · Cobertura nova m²: 11220 NÃO. Certo: 80–150 (= 80–150 € / m²).
+    · Reboco m²: 2550 NÃO. Certo: 25–40 (= 25–40 € / m²).
+- TESTE MENTAL antes de submeter: para 100 m² de obra, o subtotal típico em Portugal é 30 000 a 150 000 €. Se a tua proposta excede 500 000 €, há quase certamente uma confusão de unidades. Pára, divide tudo por 10 ou 100, e re-avalia.
 - Se um input não for interpretável, regista-o em observacoes_gerais.
 
 Responde APENAS com o JSON, sem texto antes ou depois, sem markdown, sem blocos de código.`;

@@ -66,3 +66,6 @@ next-env.d.ts
 
 # Materiais reais de obras (fotos do cliente) — nao vai para o repo
 OBRA LAVRA/
+
+# PDFs locais com export ad-hoc do orçamento
+/Sustain Or*.pdf

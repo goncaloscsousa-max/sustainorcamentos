@@ -64,7 +64,9 @@ export const moneyCentsOptional = z.preprocess(
   z.number().int().nonnegative("Tem de ser ≥ 0").nullable(),
 );
 
-/** Aceita string "23,00" ou "23" e devolve basis points (2300). */
+/** Aceita string "23,00" ou "23" e devolve basis points (2300).
+ *  Limite máximo 10000 BPS (= 100 %) — protege contra utilizador escrever
+ *  "2300" no campo (que em BPS seria 2300% e dispararia 23x os totais). */
 export const percentageBps = z.preprocess(
   (v) => {
     if (v === "" || v == null) return undefined;
@@ -74,5 +76,6 @@ export const percentageBps = z.preprocess(
   z
     .number({ error: "Percentagem inválida" })
     .int()
-    .min(0, "Tem de ser ≥ 0"),
+    .min(0, "Tem de ser ≥ 0")
+    .max(10000, "Percentagem tem de ser ≤ 100 % (escreve 23, não 2300)"),
 );

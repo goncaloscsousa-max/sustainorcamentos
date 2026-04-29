@@ -85,10 +85,24 @@ cd "$NEW_REL"
 
 ln -s "$SHARED/.env" .env
 
+# Carrega o .env para esta sessão. Crítico para os próximos passos:
+# - npm ci respeita NODE_ENV → precisamos saber se é production
+# - npm run db:migrate lê DATABASE_PATH
+# - npm run preflight pode precisar de outros vars
+# `set -a` exporta todas as variáveis assignadas até `set +a`.
+set -a
+# shellcheck disable=SC1091
+. "$SHARED/.env"
+set +a
+
 # --- Install + preflight + migrate ---
 
-echo "[deploy] npm ci"
-npm ci
+# IMPORTANTE: passamos `--include=dev` explicitamente porque o .env tem
+# NODE_ENV=production, e por defeito npm ci salta devDependencies em
+# production. Mas eslint, tsc, tsx e drizzle-kit (devDeps) são necessários
+# para o preflight e para correr as migrations.
+echo "[deploy] npm ci --include=dev"
+npm ci --include=dev
 
 echo "[deploy] preflight (lint + tsc + build)"
 if ! npm run preflight; then

@@ -179,13 +179,20 @@ export default async function ObraDashboardPage({
   })();
 
   const briefingPreenchido = !!obra.briefing;
-  const temFicheiros = ficheiros.length > 0;
-  const podeGerarSugestoes = briefingPreenchido && temFicheiros;
+  const temLinhasOrcamento = linhasMaisRecente.length > 0;
+  const podeGerarSugestoes = briefingPreenchido && temLinhasOrcamento;
   const motivoBloqueioSugestoes = !briefingPreenchido
     ? "Preenche primeiro o briefing da obra (Editar obra → 7 secções)."
-    : !temFicheiros
-      ? "Carrega pelo menos uma foto ou ficheiro de referência antes de gerar sugestões — a IA usa-os para calibrar materiais e estilo."
+    : !temLinhasOrcamento
+      ? "O orçamento ainda não tem linhas. Corre primeiro \"Analisar com IA\" no orçamento (ou adiciona linhas manualmente) — as sugestões de materiais usam as categorias e quantidades do orçamento como referência."
       : null;
+
+  // Staleness: se o orçamento foi alterado depois de as sugestões terem
+  // sido geradas, marca-as como potencialmente desatualizadas.
+  const sugestoesDesatualizadas =
+    obra.sugestoesMateriaisAtualizadasEm != null &&
+    orcamentoMaisRecente != null &&
+    orcamentoMaisRecente.updatedAt > obra.sugestoesMateriaisAtualizadasEm;
 
   const createOrcBound = createOrcamentoAction.bind(null, obra.id);
 
@@ -591,6 +598,7 @@ export default async function ObraDashboardPage({
         atualizadoEm={obra.sugestoesMateriaisAtualizadasEm ?? null}
         podeGerar={podeGerarSugestoes}
         motivoBloqueio={motivoBloqueioSugestoes}
+        desatualizadas={sugestoesDesatualizadas}
       />
 
       {obra.notas ? (

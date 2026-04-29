@@ -34,6 +34,36 @@ import { resizeForAI } from "@/lib/ai/resize-image";
 const MAX_IMAGES_PER_ANALYSIS = 8;
 const MAX_PDFS_PER_ANALYSIS = 3;
 
+/**
+ * Sanity check defensivo dos preços que a IA devolve.
+ *
+ * O Claude Sonnet por vezes confunde EUR com cêntimos apesar do prompt
+ * ser explícito (ex.: devolve 7140 em vez de 71.40 para capoto m²).
+ * Quando o preço unitário é absurdamente alto para a unidade, dividimos
+ * por 100 e marcamos a linha com aviso nas notas — não silenciamos.
+ *
+ * Limites conservadores em €/unidade (acima → assume cents-por-engano):
+ */
+const SANITY_THRESHOLD_PER_UNIT_EUR: Record<string, number> = {
+  "m²": 500,
+  "m³": 1000,
+  ml: 250,
+  un: 5000,
+  vg: 100000,
+  h: 200,
+};
+
+function sanityCheckPrecoEur(unidade: string, valorEur: number): {
+  valorAjustadoEur: number;
+  ajustado: boolean;
+} {
+  const threshold = SANITY_THRESHOLD_PER_UNIT_EUR[unidade] ?? 10000;
+  if (valorEur > threshold) {
+    return { valorAjustadoEur: valorEur / 100, ajustado: true };
+  }
+  return { valorAjustadoEur: valorEur, ajustado: false };
+}
+
 type ImageMime = "image/jpeg" | "image/png" | "image/webp";
 
 function imageMime(mime: string | null | undefined): ImageMime | null {
@@ -260,14 +290,33 @@ export async function analisarObraAction(
         tx.insert(linhasOrcamento)
           .values(
             parsed.trabalhos_propostos.map((t) => {
-              const precoCents = Math.round(
-                (t.preco_cliente_unit_eur ?? 0) * 100,
-              );
+              const precoOriginal = t.preco_cliente_unit_eur ?? 0;
+              const custoOriginal = t.custo_interno_unit_eur ?? 0;
+              const precoSan = sanityCheckPrecoEur(t.unidade, precoOriginal);
+              const custoSan = sanityCheckPrecoEur(t.unidade, custoOriginal);
+
+              const precoCents = Math.round(precoSan.valorAjustadoEur * 100);
               const custoCents =
-                t.custo_interno_unit_eur > 0
-                  ? Math.round(t.custo_interno_unit_eur * 100)
+                custoSan.valorAjustadoEur > 0
+                  ? Math.round(custoSan.valorAjustadoEur * 100)
                   : null;
               const qty = t.quantidade_sugerida;
+
+              const notaSanityParts: string[] = [];
+              if (precoSan.ajustado) {
+                notaSanityParts.push(
+                  `IA devolveu preço cliente ${precoOriginal.toFixed(2)} €/${t.unidade} (acima do limite ${SANITY_THRESHOLD_PER_UNIT_EUR[t.unidade] ?? 10000} €) — divididos por 100 automaticamente. VERIFICA.`,
+                );
+              }
+              if (custoSan.ajustado) {
+                notaSanityParts.push(
+                  `IA devolveu custo interno ${custoOriginal.toFixed(2)} €/${t.unidade} — divididos por 100 automaticamente. VERIFICA.`,
+                );
+              }
+              const notas = [t.justificacao, ...notaSanityParts]
+                .filter(Boolean)
+                .join("\n");
+
               return {
                 orcamentoId,
                 categoria: t.categoria,
@@ -282,7 +331,7 @@ export async function analisarObraAction(
                   custoCents != null ? Math.round(qty * custoCents) : 0,
                 origem: "ia_sugestao" as const,
                 tabelaPrecoId: null,
-                notas: t.justificacao,
+                notas,
               };
             }),
           )

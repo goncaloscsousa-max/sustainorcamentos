@@ -27,6 +27,7 @@ type Props = {
   atualizadoEm: Date | null;
   podeGerar: boolean;
   motivoBloqueio: string | null;
+  desatualizadas: boolean;
 };
 
 export function SugestoesMateriais({
@@ -36,6 +37,7 @@ export function SugestoesMateriais({
   atualizadoEm,
   podeGerar,
   motivoBloqueio,
+  desatualizadas,
 }: Props) {
   const [isPending, start] = useTransition();
 
@@ -106,6 +108,10 @@ export function SugestoesMateriais({
           className="border-b bg-amber-50/60 px-5 py-2 text-xs text-amber-800 dark:bg-amber-950/20 dark:text-amber-300"
         >
           {motivoBloqueio}
+        </p>
+      ) : desatualizadas && sugestoes && sugestoes.length > 0 ? (
+        <p className="border-b bg-amber-50/60 px-5 py-2 text-xs text-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+          ⚠ As sugestões podem estar desatualizadas — o orçamento foi alterado depois de elas terem sido geradas. Carrega <strong>&ldquo;Atualizar sugestões&rdquo;</strong> para regenerar com base nas linhas actuais.
         </p>
       ) : null}
 
