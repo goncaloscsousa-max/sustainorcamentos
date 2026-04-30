@@ -32,6 +32,7 @@ export const DIVISOES_INTERVENCIONADAS = [
   "logradouro_jardim",
   "comercial_loja",
   "comercial_escritorio",
+  "outro",
 ] as const;
 export type DivisaoIntervencionada = (typeof DIVISOES_INTERVENCIONADAS)[number];
 
@@ -50,6 +51,7 @@ export const DIVISAO_LABELS: Record<DivisaoIntervencionada, string> = {
   logradouro_jardim: "Logradouro / jardim",
   comercial_loja: "Loja comercial",
   comercial_escritorio: "Escritório",
+  outro: "Outro (descreve)",
 };
 
 export const ANO_CONSTRUCAO_OPCOES = [
@@ -201,11 +203,20 @@ const optionalText = z.preprocess(
   z.string().trim().nullable(),
 );
 
-export const briefingObraSchema = z.object({
+/**
+ * Schema base do briefing — sem refinements transversais.
+ * É o que estendemos para o `briefingObraReadSchema` (leitura permissiva).
+ * O schema de submit (`briefingObraSchema`) é este + refinements.
+ */
+const briefingObraSchemaRaw = z.object({
   /* Âmbito */
   divisoes: z
     .array(z.enum(DIVISOES_INTERVENCIONADAS))
     .min(1, "Indica pelo menos uma divisão intervencionada"),
+  // Texto livre que acompanha "Outro" — só relevante se "outro" estiver
+  // em `divisoes`. Mantemos opcional para retrocompatibilidade com obras
+  // antigas que não tinham este campo.
+  divisoesOutroDescricao: optionalText,
   areaTotalM2: z.preprocess(
     (v) => {
       if (v == null || v === "") return null;
@@ -271,6 +282,24 @@ export const briefingObraSchema = z.object({
   notasAdicionais: optionalText,
 });
 
+// Schema final para SUBMIT — adiciona o refinement transversal.
+// Se marcou "Outro" como divisão, exige descrição não vazia.
+export const briefingObraSchema = briefingObraSchemaRaw.superRefine(
+  (data, ctx) => {
+    if (data.divisoes.includes("outro")) {
+      const desc = data.divisoesOutroDescricao?.trim();
+      if (!desc || desc.length < 3) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["divisoesOutroDescricao"],
+          message:
+            "Descreve a divisão 'Outro' (mín. 3 caracteres) ou desmarca a opção.",
+        });
+      }
+    }
+  },
+);
+
 export type BriefingObra = z.infer<typeof briefingObraSchema>;
 
 /**
@@ -282,7 +311,7 @@ export type BriefingObra = z.infer<typeof briefingObraSchema>;
  * informação, leitura aceita campos legacy mais soltos e devolve `BriefingObra`
  * com defaults onde precisa.
  */
-const briefingObraReadSchema = briefingObraSchema.extend({
+const briefingObraReadSchema = briefingObraSchemaRaw.extend({
   trabalhoEspecifico: z.string().trim().default(""),
 });
 
@@ -303,7 +332,17 @@ function pickLabel<T extends { value: string; label: string }>(
  * marcada para a IA poder discriminar.
  */
 export function briefingToPrompt(b: BriefingObra): string {
-  const divisoes = b.divisoes.map((d) => DIVISAO_LABELS[d]).join(", ");
+  // Quando "outro" está marcado, substitui o label genérico pelo texto
+  // livre que o utilizador escreveu (ex.: "Anexo de jardim", "Sótão").
+  const divisoes = b.divisoes
+    .map((d) => {
+      if (d === "outro") {
+        const desc = b.divisoesOutroDescricao?.trim();
+        return desc ? `Outro (${desc})` : DIVISAO_LABELS[d];
+      }
+      return DIVISAO_LABELS[d];
+    })
+    .join(", ");
   const orcamentoAlvo =
     b.orcamentoAlvoMinEur != null || b.orcamentoAlvoMaxEur != null
       ? `${b.orcamentoAlvoMinEur ?? "?"} – ${b.orcamentoAlvoMaxEur ?? "?"} €`

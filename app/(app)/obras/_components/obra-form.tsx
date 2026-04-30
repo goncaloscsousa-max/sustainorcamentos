@@ -91,6 +91,7 @@ export function ObraForm({
     dataInicioPrevista: obra?.dataInicioPrevista ?? "",
     dataConclusaoPrevista: obra?.dataConclusaoPrevista ?? "",
     notas: obra?.notas ?? "",
+    briefing_divisoesOutroDescricao: initialBriefing.divisoesOutroDescricao ?? "",
     briefing_areaTotalM2: numToStr(initialBriefing.areaTotalM2),
     briefing_peDireitoM: numToStr(initialBriefing.peDireitoM),
     briefing_ultimaIntervencao: initialBriefing.ultimaIntervencao ?? "",
@@ -336,6 +337,29 @@ export function ObraForm({
               </label>
             ))}
           </div>
+
+          {/* Campo livre que aparece SÓ quando "Outro" está marcado */}
+          {divisoes.has("outro") ? (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="briefing_divisoesOutroDescricao">
+                Descreve a divisão &ldquo;Outro&rdquo; *
+              </Label>
+              <Input
+                id="briefing_divisoesOutroDescricao"
+                name="briefing_divisoesOutroDescricao"
+                value={vals.briefing_divisoesOutroDescricao}
+                onChange={setVal("briefing_divisoesOutroDescricao")}
+                placeholder="Ex.: Sótão, anexo de jardim, sala técnica, escadas exteriores"
+                aria-invalid={
+                  !!state.fieldErrors?.briefing_divisoesOutroDescricao
+                }
+              />
+              <FieldError
+                msg={state.fieldErrors?.briefing_divisoesOutroDescricao}
+              />
+            </div>
+          ) : null}
+
           <FieldError msg={state.fieldErrors?.briefing_divisoes} />
         </div>
 
@@ -761,6 +785,7 @@ const FIELD_LABELS: Record<string, string> = {
   dataInicioPrevista: "Início previsto",
   dataConclusaoPrevista: "Conclusão prevista",
   briefing_divisoes: "Divisões intervencionadas",
+  briefing_divisoesOutroDescricao: "Descrição da divisão 'Outro'",
   briefing_areaTotalM2: "Área total",
   briefing_peDireitoM: "Pé-direito",
   briefing_tipologiaImovel: "Tipologia",

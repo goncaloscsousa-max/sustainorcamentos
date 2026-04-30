@@ -17,6 +17,7 @@ import { requireUser } from "@/lib/auth/require-user";
 function parseBriefing(formData: FormData) {
   return {
     divisoes: formData.getAll("briefing_divisoes"),
+    divisoesOutroDescricao: formData.get("briefing_divisoesOutroDescricao"),
     areaTotalM2: formData.get("briefing_areaTotalM2"),
     peDireitoM: formData.get("briefing_peDireitoM"),
     tipologiaImovel: formData.get("briefing_tipologiaImovel"),

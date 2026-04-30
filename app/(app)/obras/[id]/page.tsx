@@ -396,7 +396,13 @@ export default async function ObraDashboardPage({
                 <BriefingItem
                   label="Divisões"
                   value={briefing.divisoes
-                    .map((d) => DIVISAO_LABELS[d])
+                    .map((d) => {
+                      if (d === "outro") {
+                        const desc = briefing.divisoesOutroDescricao?.trim();
+                        return desc ? `Outro (${desc})` : DIVISAO_LABELS[d];
+                      }
+                      return DIVISAO_LABELS[d];
+                    })
                     .join(", ")}
                 />
                 <BriefingItem
