@@ -153,13 +153,14 @@ export default async function HomePage() {
           className="pointer-events-none absolute -top-10 -left-16 -z-10 size-72 rounded-full bg-primary/20 blur-[120px]"
         />
         <h1 className="max-w-3xl bg-gradient-to-br from-foreground via-foreground to-foreground/60 bg-clip-text text-4xl font-medium leading-[1.1] tracking-tight text-transparent md:text-5xl">
-          Orçamentos profissionais
+          A engenharia por trás
           <br />
-          <span className="italic text-primary">em minutos.</span>
+          <span className="italic text-primary">de cada orçamento.</span>
         </h1>
         <p className="max-w-2xl text-muted-foreground">
-          Centraliza obras, clientes, preços praticados e análises técnicas
-          para gerar propostas consistentes com histórico de rentabilidade.
+          Briefing estruturado, análise técnica por IA, preços coerentes com
+          o teu histórico. Da visita à obra à proposta assinada — num só
+          fluxo.
         </p>
       </section>
 
