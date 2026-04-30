@@ -23,7 +23,6 @@ import { db } from "@/lib/db";
 import {
   clientes,
   ficheirosObra,
-  linhasOrcamento,
   obras,
   orcamentos,
   riscosIdentificados,
@@ -57,9 +56,6 @@ import { createOrcamentoAction } from "./orcamento/actions";
 import { FICHEIRO_TIPO_LABELS } from "./ficheiros/tipos";
 import { UploadForm } from "./ficheiros/_components/upload-form";
 import { DeleteFicheiroButton } from "./ficheiros/_components/file-row";
-import { FasesFlowchart } from "./_components/fases-flowchart";
-import { SugestoesMateriais } from "./_components/sugestoes-materiais";
-import { sugestaoMateriaisResultSchema } from "@/lib/ai/sugestao-materiais";
 
 export const dynamic = "force-dynamic";
 
@@ -108,21 +104,14 @@ export default async function ObraDashboardPage({
       .orderBy(asc(ficheirosObra.tipo), asc(ficheirosObra.uploadedAt)),
   ]);
 
-  const orcamentoMaisRecente = orcamentosList[0] ?? null;
   const orcamentoIds = orcamentosList.map((o) => o.id);
 
-  // Linhas do orçamento mais recente (para o fluxograma) + agregação de
-  // riscos abertos em todos os orçamentos da obra (para o badge no topo).
-  const [linhasMaisRecente, riscosAbertosRows] = await Promise.all([
-    orcamentoMaisRecente
-      ? db
-          .select()
-          .from(linhasOrcamento)
-          .where(eq(linhasOrcamento.orcamentoId, orcamentoMaisRecente.id))
-          .orderBy(asc(linhasOrcamento.ordem))
-      : Promise.resolve([]),
+  // Agregação de riscos abertos em todos os orçamentos da obra (para o
+  // badge no topo). O fluxograma e sugestões de materiais foram movidos
+  // para a página do orçamento — a obra page já não precisa das linhas.
+  const riscosAbertosRows =
     orcamentoIds.length > 0
-      ? db
+      ? await db
           .select({
             orcamentoId: riscosIdentificados.orcamentoId,
             severidade: riscosIdentificados.severidade,
@@ -139,8 +128,7 @@ export default async function ObraDashboardPage({
             riscosIdentificados.orcamentoId,
             riscosIdentificados.severidade,
           )
-      : Promise.resolve([] as { orcamentoId: string; severidade: string; n: number }[]),
-  ]);
+      : ([] as { orcamentoId: string; severidade: string; n: number }[]);
 
   const riscosAlta = riscosAbertosRows
     .filter((r) => r.severidade === "alta")
@@ -166,34 +154,6 @@ export default async function ObraDashboardPage({
       )[0]?.[0] ?? null
     : null;
 
-  // Sugestões de materiais persistidas
-  const sugestoesParsed = (() => {
-    if (!obra.sugestoesMateriais) return null;
-    try {
-      return sugestaoMateriaisResultSchema.parse(
-        JSON.parse(obra.sugestoesMateriais),
-      );
-    } catch {
-      return null;
-    }
-  })();
-
-  const briefingPreenchido = !!obra.briefing;
-  const temLinhasOrcamento = linhasMaisRecente.length > 0;
-  const podeGerarSugestoes = briefingPreenchido && temLinhasOrcamento;
-  const motivoBloqueioSugestoes = !briefingPreenchido
-    ? "Preenche primeiro o briefing da obra (Editar obra → 7 secções)."
-    : !temLinhasOrcamento
-      ? "O orçamento ainda não tem linhas. Corre primeiro \"Analisar com IA\" no orçamento (ou adiciona linhas manualmente) — as sugestões de materiais usam as categorias e quantidades do orçamento como referência."
-      : null;
-
-  // Staleness: se o orçamento foi alterado depois de as sugestões terem
-  // sido geradas, marca-as como potencialmente desatualizadas.
-  const sugestoesDesatualizadas =
-    obra.sugestoesMateriaisAtualizadasEm != null &&
-    orcamentoMaisRecente != null &&
-    orcamentoMaisRecente.updatedAt > obra.sugestoesMateriaisAtualizadasEm;
-
   const createOrcBound = createOrcamentoAction.bind(null, obra.id);
 
   function formatBytes(b: number | null | undefined): string {
@@ -213,8 +173,6 @@ export default async function ObraDashboardPage({
     opts: readonly { value: string; label: string }[],
     v: string,
   ) => opts.find((o) => o.value === v)?.label ?? v;
-
-  const prazoDesejadoSemanas = briefing?.prazoDesejadoSemanas ?? null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -378,6 +336,74 @@ export default async function ObraDashboardPage({
             </div>
           </CardContent>
         </Card>
+      </section>
+
+      {/* === FICHEIROS — vem antes do briefing porque o utilizador costuma === */}
+      {/* === ter as fotos abertas no telemóvel quando preenche dados.       === */}
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-col">
+          <h2 className="text-lg font-medium">Ficheiros</h2>
+          <p className="text-xs text-muted-foreground">
+            Fotos do estado atual, MTQ, projetos de especialidades. Usados como
+            input da análise IA.
+          </p>
+        </div>
+
+        <UploadForm obraId={obra.id} />
+
+        {ficheiros.length === 0 ? (
+          <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+            Ainda não há ficheiros carregados.
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Nome</TableHead>
+                  <TableHead className="text-right">Tamanho</TableHead>
+                  <TableHead className="text-muted-foreground">Upload</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ficheiros.map((f) => (
+                  <TableRow key={f.id}>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {FICHEIRO_TIPO_LABELS[
+                        f.tipo as keyof typeof FICHEIRO_TIPO_LABELS
+                      ] ?? f.tipo}
+                    </TableCell>
+                    <TableCell>
+                      <a
+                        href={`/api/ficheiros/${f.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                      >
+                        {f.nomeOriginal}
+                      </a>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs tabular-nums">
+                      {formatBytes(f.tamanhoBytes)}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {formatDateTime(f.uploadedAt)}
+                    </TableCell>
+                    <TableCell>
+                      <DeleteFicheiroButton
+                        obraId={obra.id}
+                        ficheiroId={f.id}
+                        nomeOriginal={f.nomeOriginal}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </section>
 
       <Card>
@@ -591,22 +617,6 @@ export default async function ObraDashboardPage({
         </CardContent>
       </Card>
 
-      <FasesFlowchart
-        linhasOrcamentoMaisRecente={linhasMaisRecente}
-        estadoObra={obra.estado}
-        prazoDesejadoSemanas={prazoDesejadoSemanas}
-      />
-
-      <SugestoesMateriais
-        obraId={obra.id}
-        sugestoes={sugestoesParsed?.sugestoes ?? null}
-        observacoes={sugestoesParsed?.observacoes ?? null}
-        atualizadoEm={obra.sugestoesMateriaisAtualizadasEm ?? null}
-        podeGerar={podeGerarSugestoes}
-        motivoBloqueio={motivoBloqueioSugestoes}
-        desatualizadas={sugestoesDesatualizadas}
-      />
-
       {obra.notas ? (
         <Card>
           <CardHeader>
@@ -619,72 +629,6 @@ export default async function ObraDashboardPage({
           </CardHeader>
         </Card>
       ) : null}
-
-      <section className="flex flex-col gap-3">
-        <div className="flex flex-col">
-          <h2 className="text-lg font-medium">Ficheiros</h2>
-          <p className="text-xs text-muted-foreground">
-            Fotos do estado atual, MTQ, projetos de especialidades. Usados como
-            input da análise IA.
-          </p>
-        </div>
-
-        <UploadForm obraId={obra.id} />
-
-        {ficheiros.length === 0 ? (
-          <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-            Ainda não há ficheiros carregados.
-          </div>
-        ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Nome</TableHead>
-                  <TableHead className="text-right">Tamanho</TableHead>
-                  <TableHead className="text-muted-foreground">Upload</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ficheiros.map((f) => (
-                  <TableRow key={f.id}>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {FICHEIRO_TIPO_LABELS[
-                        f.tipo as keyof typeof FICHEIRO_TIPO_LABELS
-                      ] ?? f.tipo}
-                    </TableCell>
-                    <TableCell>
-                      <a
-                        href={`/api/ficheiros/${f.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline"
-                      >
-                        {f.nomeOriginal}
-                      </a>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-xs tabular-nums">
-                      {formatBytes(f.tamanhoBytes)}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {formatDateTime(f.uploadedAt)}
-                    </TableCell>
-                    <TableCell>
-                      <DeleteFicheiroButton
-                        obraId={obra.id}
-                        ficheiroId={f.id}
-                        nomeOriginal={f.nomeOriginal}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </section>
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">

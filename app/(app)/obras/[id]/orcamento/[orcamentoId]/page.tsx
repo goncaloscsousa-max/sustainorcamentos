@@ -14,12 +14,16 @@ import {
   riscosIdentificados,
 } from "@/lib/db/schema";
 import { formatDateTime } from "@/lib/format";
+import { tryParseBriefing } from "@/lib/data/briefing-obra";
+import { sugestaoMateriaisResultSchema } from "@/lib/ai/sugestao-materiais";
 
 import { OrcamentoEditor } from "./_components/orcamento-editor";
 import { OrcamentoActions } from "./_components/orcamento-actions";
 import { ExportButtons } from "./_components/export-buttons";
 import { AnaliseIAButton } from "./_components/analise-ia-button";
 import { RiscosPanel } from "./_components/riscos-panel";
+import { FasesFlowchart } from "../../_components/fases-flowchart";
+import { SugestoesMateriais } from "../../_components/sugestoes-materiais";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +73,36 @@ export default async function OrcamentoEditorPage({
     .from(ficheirosObra)
     .where(eq(ficheirosObra.obraId, obraId));
 
+  // --- Fluxograma + Sugestões: tudo derivado do orçamento ACTUAL (não do
+  // mais recente da obra). Faz mais sentido para o utilizador: estás aqui,
+  // vês as fases e materiais deste orçamento.
+  const briefing = tryParseBriefing(obra.briefing);
+  const briefingPreenchido = !!obra.briefing;
+  const temLinhas = linhas.length > 0;
+
+  const sugestoesParsed = (() => {
+    if (!obra.sugestoesMateriais) return null;
+    try {
+      return sugestaoMateriaisResultSchema.parse(
+        JSON.parse(obra.sugestoesMateriais),
+      );
+    } catch {
+      return null;
+    }
+  })();
+
+  const podeGerarSugestoes = briefingPreenchido && temLinhas;
+  const motivoBloqueioSugestoes = !briefingPreenchido
+    ? "Preenche primeiro o briefing da obra (Voltar à obra → Editar)."
+    : !temLinhas
+      ? "Este orçamento ainda não tem linhas. Corre primeiro \"Analisar com IA\" — as sugestões usam as categorias e quantidades das linhas."
+      : null;
+
+  // Stale: sugestões geradas antes da última alteração deste orçamento.
+  const sugestoesDesatualizadas =
+    obra.sugestoesMateriaisAtualizadasEm != null &&
+    orcamento.updatedAt > obra.sugestoesMateriaisAtualizadasEm;
+
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-3">
@@ -115,6 +149,22 @@ export default async function OrcamentoEditorPage({
       </header>
 
       <RiscosPanel riscos={riscos} />
+
+      <FasesFlowchart
+        linhasOrcamentoMaisRecente={linhas}
+        estadoObra={obra.estado}
+        prazoDesejadoSemanas={briefing?.prazoDesejadoSemanas ?? null}
+      />
+
+      <SugestoesMateriais
+        obraId={obra.id}
+        sugestoes={sugestoesParsed?.sugestoes ?? null}
+        observacoes={sugestoesParsed?.observacoes ?? null}
+        atualizadoEm={obra.sugestoesMateriaisAtualizadasEm ?? null}
+        podeGerar={podeGerarSugestoes}
+        motivoBloqueio={motivoBloqueioSugestoes}
+        desatualizadas={sugestoesDesatualizadas}
+      />
 
       <OrcamentoEditor
         key={`linhas-${linhas.length}`}
