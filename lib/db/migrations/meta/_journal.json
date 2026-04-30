@@ -57,6 +57,13 @@
       "when": 1777471878779,
       "tag": "0007_lumpy_groot",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1777900000000,
+      "tag": "0008_add_margem_alvo_to_orcamentos",
+      "breakpoints": true
     }
   ]
 }

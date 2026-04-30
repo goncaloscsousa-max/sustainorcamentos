@@ -79,3 +79,18 @@ export const percentageBps = z.preprocess(
     .min(0, "Tem de ser ≥ 0")
     .max(10000, "Percentagem tem de ser ≤ 100 % (escreve 23, não 2300)"),
 );
+
+/** Variante opcional — `null` quando vazio. Mesmo limite de 100 %. */
+export const percentageBpsOptional = z.preprocess(
+  (v) => {
+    if (v === "" || v == null) return null;
+    const n = parseEuroString(v);
+    return n == null ? undefined : Math.round(n * 100);
+  },
+  z
+    .number()
+    .int()
+    .min(0, "Tem de ser ≥ 0")
+    .max(10000, "Percentagem tem de ser ≤ 100 % (escreve 30, não 3000)")
+    .nullable(),
+);

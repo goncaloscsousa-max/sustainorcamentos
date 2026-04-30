@@ -8,7 +8,8 @@
  *   1. Lê preco_cents e custo_cents
  *   2. Converte para EUR (÷ 100)
  *   3. Aplica sanity iterativo (até 3 divisões por 100) com base na unidade
- *   4. Se mudou, actualiza preco/custo/totais da linha + adiciona nota
+ *   4. Se mudou, actualiza preco/custo/totais da linha (NÃO toca em `notas`,
+ *      porque `notas` é visível ao cliente no editor / PDF / Excel)
  *
  * Para cada orçamento que teve linhas tocadas:
  *   - Recomputa subtotal, IVA, total, custo interno e margem teórica
@@ -61,7 +62,6 @@ type Linha = {
   custo_interno_unit_cents: number | null;
   total_cliente_cents: number;
   total_custo_interno_cents: number;
-  notas: string | null;
 };
 
 type Orcamento = {
@@ -76,7 +76,7 @@ const allLinhas = sqlite
   .prepare<[], Linha>(
     `SELECT id, orcamento_id, origem, unidade, quantidade,
             preco_cliente_unit_cents, custo_interno_unit_cents,
-            total_cliente_cents, total_custo_interno_cents, notas
+            total_cliente_cents, total_custo_interno_cents
        FROM linhas_orcamento
        WHERE origem = 'ia_sugestao'`,
   )
@@ -100,7 +100,6 @@ const updates: {
   totalNewCents: number;
   totalCustoOldCents: number;
   totalCustoNewCents: number;
-  notaExtra: string;
 }[] = [];
 
 for (const l of allLinhas) {
@@ -122,15 +121,16 @@ for (const l of allLinhas) {
   const totalCustoNewCents =
     custoNewCents != null ? Math.round(l.quantidade * custoNewCents) : 0;
 
-  const notas: string[] = [];
+  // Log para o operador (consola), mas NÃO escreve em `notas` — `notas` é
+  // visível ao cliente no editor / PDF / Excel.
   if (ps.iteracoes > 0) {
-    notas.push(
-      `[FIX RETROACTIVO] preço cliente ajustado de ${precoEur.toFixed(2)} para ${ps.valorAjustadoEur.toFixed(2)} €/${l.unidade} (÷100^${ps.iteracoes}). VERIFICA.`,
+    console.log(
+      `  [linha ${l.id.slice(0, 8)}] preço cliente: ${precoEur.toFixed(2)} → ${ps.valorAjustadoEur.toFixed(2)} €/${l.unidade} (÷100^${ps.iteracoes})`,
     );
   }
   if (cs.iteracoes > 0) {
-    notas.push(
-      `[FIX RETROACTIVO] custo interno ajustado de ${custoEur.toFixed(2)} para ${cs.valorAjustadoEur.toFixed(2)} €/${l.unidade} (÷100^${cs.iteracoes}).`,
+    console.log(
+      `  [linha ${l.id.slice(0, 8)}] custo interno: ${custoEur.toFixed(2)} → ${cs.valorAjustadoEur.toFixed(2)} €/${l.unidade} (÷100^${cs.iteracoes})`,
     );
   }
 
@@ -147,7 +147,6 @@ for (const l of allLinhas) {
     totalNewCents,
     totalCustoOldCents: l.total_custo_interno_cents,
     totalCustoNewCents,
-    notaExtra: notas.join("\n"),
   });
 }
 
@@ -189,8 +188,7 @@ const updateLinhaStmt = sqlite.prepare(`
      SET preco_cliente_unit_cents = ?,
          custo_interno_unit_cents = ?,
          total_cliente_cents = ?,
-         total_custo_interno_cents = ?,
-         notas = COALESCE(notas, '') || ?
+         total_custo_interno_cents = ?
    WHERE id = ?
 `);
 
@@ -227,7 +225,6 @@ const tx = sqlite.transaction(() => {
       u.custoNewCents,
       u.totalNewCents,
       u.totalCustoNewCents,
-      "\n" + u.notaExtra,
       u.linhaId,
     );
   }

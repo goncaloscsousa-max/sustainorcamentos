@@ -5,6 +5,7 @@ import {
   moneyCentsOptional,
   optionalText,
   percentageBps,
+  percentageBpsOptional,
   positiveDecimal,
 } from "./shared";
 
@@ -41,6 +42,7 @@ export const orcamentoHeaderSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Data de emissão inválida"),
   validadeDias: z.coerce.number().int().positive("Validade tem de ser > 0"),
   ivaPercentagemBps: percentageBps,
+  margemAlvoBps: percentageBpsOptional,
   condicoesPagamento: z.string().trim().min(1, "Condições obrigatórias"),
   observacoes: optionalText,
 });

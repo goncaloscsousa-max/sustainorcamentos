@@ -164,6 +164,7 @@ export const orcamentos = sqliteTable(
       .notNull()
       .default(0),
     margemTeoricaBps: integer("margem_teorica_bps").notNull().default(0),
+    margemAlvoBps: integer("margem_alvo_bps"),
     condicoesPagamento: text("condicoes_pagamento")
       .notNull()
       .default("40% início / 40% meio de obra / 20% conclusão"),

@@ -55,6 +55,7 @@ type HeaderState = {
   dataEmissao: string;
   validadeDias: string;
   ivaPercentageStr: string;
+  margemAlvoStr: string;
   condicoesPagamento: string;
   observacoes: string;
 };
@@ -137,6 +138,10 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
     ivaPercentageStr: (orcamento.ivaPercentagemBps / 100)
       .toFixed(2)
       .replace(".", ","),
+    margemAlvoStr:
+      orcamento.margemAlvoBps == null
+        ? ""
+        : (orcamento.margemAlvoBps / 100).toFixed(2).replace(".", ","),
     condicoesPagamento: orcamento.condicoesPagamento,
     observacoes: orcamento.observacoes ?? "",
   });
@@ -206,8 +211,46 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
       subtotal > 0
         ? Math.round(((subtotal - custoInterno) / subtotal) * 10000)
         : 0;
-    return { subtotal, ivaCents, total, custoInterno, margemBps };
-  }, [linhas, header.ivaPercentageStr]);
+    const margemAlvoBps = parsePercentageInput(header.margemAlvoStr);
+    return { subtotal, ivaCents, total, custoInterno, margemBps, margemAlvoBps };
+  }, [linhas, header.ivaPercentageStr, header.margemAlvoStr]);
+
+  function applyMargemToPrices() {
+    const alvoBps = parsePercentageInput(header.margemAlvoStr);
+    if (alvoBps == null) {
+      toast.error("Indica primeiro a margem alvo (%) no metadata.");
+      return;
+    }
+    if (alvoBps >= 10000) {
+      toast.error("Margem alvo tem de ser < 100 %.");
+      return;
+    }
+    // Margem (lucro/preço): preço = custo / (1 - margem). Necessária para
+    // que (preço − custo) / preço = margem alvo.
+    const factor = 10000 / (10000 - alvoBps);
+    let semCusto = 0;
+    setLinhas((prev) =>
+      prev.map((l) => {
+        const custo = l.custoInternoStr ? parseCentsInput(l.custoInternoStr) : null;
+        if (custo == null || custo <= 0) {
+          semCusto += 1;
+          return l;
+        }
+        const novoCents = Math.round(custo * factor);
+        return {
+          ...l,
+          precoClienteStr: (novoCents / 100).toFixed(2).replace(".", ","),
+        };
+      }),
+    );
+    if (semCusto > 0) {
+      toast.warning(
+        `Margem aplicada. ${semCusto} linha(s) sem custo interno foram ignoradas.`,
+      );
+    } else {
+      toast.success("Margem aplicada a todas as linhas com custo interno.");
+    }
+  }
 
   function updateLinha(localId: string, patch: Partial<LinhaState>) {
     setLinhas((prev) =>
@@ -303,6 +346,7 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
         dataEmissao: header.dataEmissao,
         validadeDias: Number(header.validadeDias),
         ivaPercentagemBps: header.ivaPercentageStr,
+        margemAlvoBps: header.margemAlvoStr.trim() === "" ? null : header.margemAlvoStr,
         condicoesPagamento: header.condicoesPagamento,
         observacoes: header.observacoes,
       },
@@ -390,6 +434,38 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
                 setHeader({ ...header, ivaPercentageStr: e.target.value })
               }
             />
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="margemAlvo">
+              Margem alvo (%) <span className="text-xs text-muted-foreground">— opcional</span>
+            </Label>
+            <Input
+              id="margemAlvo"
+              inputMode="decimal"
+              placeholder="ex.: 30"
+              value={header.margemAlvoStr}
+              onChange={(e) =>
+                setHeader({ ...header, margemAlvoStr: e.target.value })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Usada para comparar com a margem teórica e para o botão &ldquo;Aplicar margem&rdquo;.
+            </p>
+          </div>
+          <div className="flex items-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={applyMargemToPrices}
+              disabled={!header.margemAlvoStr.trim()}
+              title="Recalcula o preço cliente de cada linha a partir do custo interno × (1 + margem alvo)"
+            >
+              Aplicar margem aos preços
+            </Button>
           </div>
         </div>
 
@@ -614,8 +690,23 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
               <span className="font-mono tabular-nums">{formatCents(totals.ivaCents)}</span>
             </div>
             <div className="flex justify-between gap-8">
-              <span className="text-muted-foreground">Margem teórica</span>
-              <span className="font-mono tabular-nums text-muted-foreground">
+              <span className="text-muted-foreground">
+                Margem teórica
+                {totals.margemAlvoBps != null ? (
+                  <span className="ml-1 text-xs">
+                    (alvo {(totals.margemAlvoBps / 100).toFixed(1)}%)
+                  </span>
+                ) : null}
+              </span>
+              <span
+                className={`font-mono tabular-nums ${
+                  totals.margemAlvoBps == null
+                    ? "text-muted-foreground"
+                    : totals.margemBps >= totals.margemAlvoBps
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-red-600 dark:text-red-400"
+                }`}
+              >
                 {(totals.margemBps / 100).toFixed(1)} %
               </span>
             </div>
