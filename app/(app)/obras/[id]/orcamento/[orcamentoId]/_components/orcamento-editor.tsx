@@ -306,15 +306,17 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
         condicoesPagamento: header.condicoesPagamento,
         observacoes: header.observacoes,
       },
+      // Enviamos os valores como STRINGS em €. O server schema (moneyCents)
+      // converte uma vez via parseEuroString × 100 → cents. Se enviarmos
+      // já em cents (number), o schema multiplica × 100 OUTRA vez e dá
+      // valores absurdos (×100 do correcto). Mesmo padrão que IVA fix.
       linhas: linhas.map((l) => ({
         categoria: l.categoria,
         descricao: l.descricao,
         unidade: l.unidade,
         quantidade: parseQuantity(l.quantidadeStr)!,
-        precoClienteUnitCents: parseCentsInput(l.precoClienteStr)!,
-        custoInternoUnitCents: l.custoInternoStr
-          ? parseCentsInput(l.custoInternoStr)
-          : null,
+        precoClienteUnitCents: l.precoClienteStr,
+        custoInternoUnitCents: l.custoInternoStr ? l.custoInternoStr : null,
         origem: l.origem,
         tabelaPrecoId: l.tabelaPrecoId,
         notas: l.notas,
