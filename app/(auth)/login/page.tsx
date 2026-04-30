@@ -7,16 +7,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getBranding } from "@/lib/branding/config";
+import { PRODUCT } from "@/lib/branding/product";
 import { LoginForm } from "./login-form";
 
-export function generateMetadata(): Metadata {
-  const b = getBranding();
-  return { title: `Entrar — ${b.brandName}` };
-}
+export const metadata: Metadata = {
+  title: `Entrar — ${PRODUCT.name}`,
+};
 
 export default function LoginPage() {
-  const { brandName, tagline } = getBranding();
   return (
     <Card className="w-full max-w-sm border-border/60 bg-card/70 shadow-2xl backdrop-blur-xl">
       <CardHeader className="text-center">
@@ -25,13 +23,15 @@ export default function LoginPage() {
             aria-hidden
             className="inline-block size-2 rounded-full bg-primary shadow-[0_0_18px_4px_oklch(0.62_0.23_25/0.55)]"
           />
-          <span>{brandName}</span>
+          <span>{PRODUCT.name}</span>
         </div>
         <CardTitle className="text-2xl font-medium tracking-tight">
           Entrar
         </CardTitle>
-        {tagline ? (
-          <CardDescription className="italic">{tagline}</CardDescription>
+        {PRODUCT.tagline ? (
+          <CardDescription className="italic">
+            {PRODUCT.tagline}
+          </CardDescription>
         ) : null}
       </CardHeader>
       <CardContent>

@@ -1,27 +1,24 @@
 /**
- * Branding por instância — lido a partir de variáveis de ambiente.
+ * Identidade da EMPRESA CLIENTE que usa o produto — lida do `.env`.
  *
- * Cada cliente tem o seu próprio `.env` com os seus valores. O código
- * NUNCA refere uma marca específica. Defaults são neutros (placeholders
- * tipo "Orçamentos" / "Empresa") para que uma instância sem .env corra
- * mas pareça óbvio que falta configurar.
+ * Cada instância tem o seu próprio `.env` com os dados da empresa que a
+ * está a usar (Sustain, ou qualquer outro cliente futuro). Estes valores
+ * só aparecem nos documentos exportados (PDFs, Excel) e nos prompts da
+ * IA — são *quem* a plataforma representa.
  *
- * No futuro, quando houver multi-tenancy, esta função muda para ler o
- * branding da DB do tenant em vez do env. Tudo o que importa esta API
- * (header, login, dashboard, exports, prompts IA) fica sem alterações.
+ * A marca do PRODUTO em si (Obraxis) está em `lib/branding/product.ts`,
+ * é constante e não é configurável por instância.
+ *
+ * No futuro, quando houver multi-tenancy real, esta função muda para
+ * ler da DB do tenant em vez do env. A API pública (`getBranding()`)
+ * fica igual.
  */
 
 export type Branding = {
-  /** Nome curto, usado em UI (header, login, browser title). */
-  brandName: string;
-
-  /** Nome legal completo da empresa, usado em PDFs / Excel. */
+  /** Nome legal completo da empresa, usado em PDFs / Excel e prompts IA. */
   companyLegalName: string;
 
-  /** Slogan / tagline opcional. Aparece no login. */
-  tagline: string | null;
-
-  /** Slogan curto usado no PDF (sob o nome da empresa). */
+  /** Slogan curto que aparece sob o nome da empresa no PDF. */
   pdfSlogan: string;
 
   /** NIF da empresa. Aparece no rodapé dos exports. */
@@ -62,15 +59,13 @@ function readOptional(name: string): string | null {
 }
 
 /**
- * Devolve o branding actual. Pura — pode ser chamada em server components,
- * server actions, API routes, scripts. NÃO usar em client components (não
- * tem acesso a `process.env`).
+ * Devolve o branding actual da empresa cliente. Pura — pode ser chamada
+ * em server components, server actions, API routes, scripts. NÃO usar
+ * em client components (não tem acesso a `process.env`).
  */
 export function getBranding(): Branding {
   return {
-    brandName: read("BRAND_NAME", "Orçamentos"),
     companyLegalName: read("COMPANY_LEGAL_NAME", "Empresa"),
-    tagline: readOptional("BRAND_TAGLINE"),
     pdfSlogan: read("COMPANY_PDF_SLOGAN", ""),
     nif: read("COMPANY_NIF", ""),
     email: read("COMPANY_EMAIL", ""),

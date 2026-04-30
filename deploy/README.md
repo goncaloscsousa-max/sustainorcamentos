@@ -117,11 +117,10 @@ UPLOADS_ROOT=/srv/sustain-orcamentos/shared/uploads
 BACKUP_DIR=/srv/sustain-orcamentos/shared/backups
 ANTHROPIC_API_KEY=<key-NOVA-de-produção-revogar-a-de-dev>
 
-# --- Branding por instância (cada cliente preenche o seu) ---
-BRAND_NAME=<ex.: "Lavra Orçamentos">
-BRAND_TAGLINE=<opcional, ex.: "Construções com rigor">
-COMPANY_LEGAL_NAME=<nome legal completo, ex.: "Lavra Construção, Lda.">
-COMPANY_PDF_SLOGAN=<opcional, slogan do PDF>
+# --- Identidade da empresa cliente que usa esta instância ---
+# (a marca do produto, "Obraxis", é constante no código — não se configura aqui)
+COMPANY_LEGAL_NAME=<nome legal completo da empresa>
+COMPANY_PDF_SLOGAN=<opcional, slogan que aparece no PDF>
 COMPANY_NIF=
 COMPANY_EMAIL=
 COMPANY_PHONE=
