@@ -40,7 +40,9 @@ const MAX_PDFS_PER_ANALYSIS = 3;
  * O Claude Sonnet por vezes confunde EUR com cêntimos apesar do prompt
  * ser explícito (ex.: devolve 7140 em vez de 71.40 para capoto m²).
  * Quando o preço unitário é absurdamente alto para a unidade, dividimos
- * por 100 e marcamos a linha com aviso nas notas — não silenciamos.
+ * por 100 ITERATIVAMENTE até ficar abaixo do limite (máximo 3 divisões
+ * para apanhar confusões até ×1 000 000). Nunca silenciamos — adicionamos
+ * aviso forte na nota da linha.
  *
  * Limites conservadores em €/unidade (acima → assume cents-por-engano):
  */
@@ -53,16 +55,31 @@ const SANITY_THRESHOLD_PER_UNIT_EUR: Record<string, number> = {
   h: 200,
 };
 
-function sanityCheckPrecoEur(unidade: string, valorEur: number): {
+const SANITY_MAX_ITERATIONS = 3;
+
+export function sanityCheckPrecoEur(
+  unidade: string,
+  valorEur: number,
+): {
   valorAjustadoEur: number;
   ajustado: boolean;
+  iteracoes: number;
 } {
   const threshold = SANITY_THRESHOLD_PER_UNIT_EUR[unidade] ?? 10000;
-  if (valorEur > threshold) {
-    return { valorAjustadoEur: valorEur / 100, ajustado: true };
+  let v = valorEur;
+  let iteracoes = 0;
+  while (v > threshold && iteracoes < SANITY_MAX_ITERATIONS) {
+    v = v / 100;
+    iteracoes += 1;
   }
-  return { valorAjustadoEur: valorEur, ajustado: false };
+  return {
+    valorAjustadoEur: v,
+    ajustado: iteracoes > 0,
+    iteracoes,
+  };
 }
+
+export { SANITY_THRESHOLD_PER_UNIT_EUR };
 
 type ImageMime = "image/jpeg" | "image/png" | "image/webp";
 
@@ -305,12 +322,16 @@ export async function analisarObraAction(
               const notaSanityParts: string[] = [];
               if (precoSan.ajustado) {
                 notaSanityParts.push(
-                  `IA devolveu preço cliente ${precoOriginal.toFixed(2)} €/${t.unidade} (acima do limite ${SANITY_THRESHOLD_PER_UNIT_EUR[t.unidade] ?? 10000} €) — divididos por 100 automaticamente. VERIFICA.`,
+                  precoSan.iteracoes > 1
+                    ? `⚠ AVISO FORTE: IA devolveu preço cliente MUITO acima do limite (${precoOriginal.toFixed(2)} €/${t.unidade}, ajustado por ${precoSan.iteracoes} divisões por 100). CONFIRMA OBRIGATORIAMENTE antes de enviar ao cliente.`
+                    : `IA devolveu preço cliente ${precoOriginal.toFixed(2)} €/${t.unidade} (acima do limite ${SANITY_THRESHOLD_PER_UNIT_EUR[t.unidade] ?? 10000} €) — dividido por 100 automaticamente. VERIFICA.`,
                 );
               }
               if (custoSan.ajustado) {
                 notaSanityParts.push(
-                  `IA devolveu custo interno ${custoOriginal.toFixed(2)} €/${t.unidade} — divididos por 100 automaticamente. VERIFICA.`,
+                  custoSan.iteracoes > 1
+                    ? `⚠ Custo interno ajustado por ${custoSan.iteracoes} divisões por 100 (original: ${custoOriginal.toFixed(2)} €/${t.unidade}).`
+                    : `IA devolveu custo interno ${custoOriginal.toFixed(2)} €/${t.unidade} — dividido por 100 automaticamente. VERIFICA.`,
                 );
               }
               const notas = [t.justificacao, ...notaSanityParts]
