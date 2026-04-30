@@ -57,7 +57,7 @@ const SANITY_THRESHOLD_PER_UNIT_EUR: Record<string, number> = {
 
 const SANITY_MAX_ITERATIONS = 3;
 
-export function sanityCheckPrecoEur(
+function sanityCheckPrecoEur(
   unidade: string,
   valorEur: number,
 ): {
@@ -78,8 +78,6 @@ export function sanityCheckPrecoEur(
     iteracoes,
   };
 }
-
-export { SANITY_THRESHOLD_PER_UNIT_EUR };
 
 type ImageMime = "image/jpeg" | "image/png" | "image/webp";
 
