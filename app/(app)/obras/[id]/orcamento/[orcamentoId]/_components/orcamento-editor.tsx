@@ -283,9 +283,17 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
       }
     }
 
+    // Validação cliente-side: confirma que o IVA digitado é parsável e ≤ 100 %.
+    // O servidor faz a conversão definitiva para BPS via schema (parseEuroString
+    // × 100). Por isso enviamos a STRING humana (ex.: "23,00"), não o número
+    // já em BPS — caso contrário o servidor multiplicaria × 100 outra vez.
     const ivaBpsCheck = parsePercentageInput(header.ivaPercentageStr);
     if (ivaBpsCheck == null) {
       toast.error("IVA inválido.");
+      return;
+    }
+    if (ivaBpsCheck > 10000) {
+      toast.error("IVA tem de ser ≤ 100 % (escreve 23, não 2300).");
       return;
     }
 
@@ -294,7 +302,7 @@ export function OrcamentoEditor({ orcamento, linhas: initialLinhas }: Props) {
         estado: header.estado,
         dataEmissao: header.dataEmissao,
         validadeDias: Number(header.validadeDias),
-        ivaPercentagemBps: ivaBpsCheck,
+        ivaPercentagemBps: header.ivaPercentageStr,
         condicoesPagamento: header.condicoesPagamento,
         observacoes: header.observacoes,
       },
