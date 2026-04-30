@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * Briefing estruturado de obra.
  *
- * Antes a Sustain inseria uma descrição livre que normalmente era pobre
+ * Antes inseria-se uma descrição livre que normalmente era pobre
  * (ex.: "remodelação do apartamento da Sra. Silva"). A IA não tem como
  * inferir áreas, idade do edifício, instalações a refazer, etc., e isto
  * resulta em orçamentos demasiado vagos.

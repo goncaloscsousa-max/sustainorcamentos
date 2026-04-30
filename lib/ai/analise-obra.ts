@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 import { anthropic, DEFAULT_MODEL, estimarCustoCents } from "./client";
+import { getBranding } from "@/lib/branding/config";
+
 import { SYSTEM_ANALISE_OBRA } from "./prompts/analise-obra";
 
 /* ---------------------------------------------------------------------- */
@@ -299,10 +301,11 @@ async function callAnthropic(
     text: "Analisa os inputs acima e devolve o JSON conforme o schema.",
   });
 
+  const empresa = getBranding().companyLegalName;
   return client.messages.create({
     model: DEFAULT_MODEL,
     max_tokens: 16000,
-    system: SYSTEM_ANALISE_OBRA,
+    system: SYSTEM_ANALISE_OBRA.replaceAll("__EMPRESA__", empresa),
     messages: [{ role: "user", content }],
   });
 }

@@ -27,7 +27,7 @@ export default async function ClientesPage() {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-medium tracking-tight">Clientes</h1>
           <p className="text-sm text-muted-foreground">
-            Base de clientes da Sustain Remodelações.
+            Base de clientes da empresa.
           </p>
         </div>
         <Button asChild>

@@ -2,7 +2,7 @@
  * Cria o utilizador admin inicial.
  *
  * Uso:
- *   ADMIN_EMAIL=info@sustain.pt ADMIN_PASSWORD='algo-seguro' ADMIN_NOME='Gonçalo Duarte' npm run db:seed
+ *   ADMIN_EMAIL=admin@empresa.pt ADMIN_PASSWORD='algo-seguro' ADMIN_NOME='Admin' npm run db:seed
  *
  * Se não forem passadas variáveis, são usados os defaults do .env (carregados manualmente).
  * Se o utilizador já existir, é apenas informado e o script termina sem alterar nada.
@@ -31,13 +31,13 @@ if (fs.existsSync(envPath)) {
 }
 
 async function main() {
-  const email = process.env.ADMIN_EMAIL ?? "info@sustain.pt";
+  const email = process.env.ADMIN_EMAIL;
   const password = process.env.ADMIN_PASSWORD;
-  const nome = process.env.ADMIN_NOME ?? "Gonçalo Duarte";
+  const nome = process.env.ADMIN_NOME ?? "Admin";
 
-  if (!password) {
+  if (!email || !password) {
     console.error(
-      "[seed] ERRO: define ADMIN_PASSWORD (variável de ambiente ou .env).",
+      "[seed] ERRO: define ADMIN_EMAIL e ADMIN_PASSWORD (variáveis de ambiente ou .env).",
     );
     process.exit(1);
   }

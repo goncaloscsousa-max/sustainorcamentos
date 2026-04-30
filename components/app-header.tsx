@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/(app)/actions";
+import { getBranding } from "@/lib/branding/config";
 
 type Props = {
   userName?: string | null;
@@ -15,6 +16,7 @@ const navItems = [
 ];
 
 export function AppHeader({ userName }: Props) {
+  const { brandName } = getBranding();
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-6">
@@ -27,12 +29,7 @@ export function AppHeader({ userName }: Props) {
               aria-hidden
               className="inline-block size-2 rounded-full bg-primary shadow-[0_0_18px_4px_oklch(0.62_0.23_25/0.55)] transition-transform group-hover:scale-110"
             />
-            <span>
-              SUSTAIN{" "}
-              <span className="font-normal text-muted-foreground">
-                Orçamentos
-              </span>
-            </span>
+            <span>{brandName}</span>
           </Link>
           <nav className="hidden items-center gap-5 text-sm text-muted-foreground md:flex">
             {navItems.map((item) => (

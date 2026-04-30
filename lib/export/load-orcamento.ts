@@ -11,6 +11,7 @@ import {
   type Obra,
   type Orcamento,
 } from "@/lib/db/schema";
+import { getBranding } from "@/lib/branding/config";
 
 export type EmpresaInfo = {
   nome: string;
@@ -34,16 +35,17 @@ export type OrcamentoExportData = {
 };
 
 function empresaFromEnv(): EmpresaInfo {
+  const b = getBranding();
   return {
-    nome: "SUSTAIN REMODELAÇÕES",
-    slogan: "Transforme o seu espaço. Transforme a sua vida.",
-    morada: "Rua Fernando Almeida, Nº 21",
-    codigoPostal: "4470-288",
-    localidade: "Vermoim",
-    telefone: "+351 912 514 048",
-    email: "info@sustain.pt",
-    website: "https://sustain.pt",
-    nif: process.env.NIF_SUSTAIN?.trim() || "{{NIF_SUSTAIN}}",
+    nome: b.companyLegalName.toUpperCase(),
+    slogan: b.pdfSlogan,
+    morada: b.addressLine,
+    codigoPostal: b.postalCode,
+    localidade: b.locality,
+    telefone: b.phone,
+    email: b.email,
+    website: b.website,
+    nif: b.nif || "{{COMPANY_NIF}}",
   };
 }
 

@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, Building2, FileText, Users } from "lucide-react";
 
@@ -9,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getBranding } from "@/lib/branding/config";
 
 const cards = [
   {
@@ -21,7 +21,7 @@ const cards = [
   {
     href: "/clientes",
     title: "Clientes",
-    description: "Registar e manter a base de clientes da Sustain.",
+    description: "Registar e manter a base de clientes.",
     cta: "Ver clientes",
     icon: Users,
   },
@@ -36,6 +36,7 @@ const cards = [
 ];
 
 export default function HomePage() {
+  const { companyLegalName } = getBranding();
   return (
     <div className="flex flex-col gap-12">
       <section className="relative flex flex-col gap-3">
@@ -48,7 +49,7 @@ export default function HomePage() {
             aria-hidden
             className="inline-block h-px w-8 bg-gradient-to-r from-primary to-transparent"
           />
-          Sustain Remodelações
+          {companyLegalName}
         </p>
         <h1 className="max-w-3xl bg-gradient-to-br from-foreground via-foreground to-foreground/60 bg-clip-text text-4xl font-medium leading-[1.1] tracking-tight text-transparent md:text-5xl">
           Orçamentos profissionais
@@ -93,54 +94,6 @@ export default function HomePage() {
             </Link>
           );
         })}
-      </section>
-
-      <section className="relative overflow-hidden rounded-2xl border bg-card/60 p-8 shadow-[0_1px_0_0_oklch(1_0_0/0.05)_inset,0_20px_40px_-24px_oklch(0_0_0/0.25)] ring-1 ring-foreground/10 backdrop-blur-sm md:p-10">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-20 -right-20 size-72 rounded-full bg-primary/10 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-24 -left-16 size-64 rounded-full bg-primary/10 blur-3xl"
-        />
-        <div className="relative grid items-center gap-8 md:grid-cols-2">
-          <div className="flex flex-col gap-4">
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-              <span
-                aria-hidden
-                className="inline-block h-px w-8 bg-gradient-to-r from-primary to-transparent"
-              />
-              Os fundadores
-            </p>
-            <h2 className="bg-gradient-to-br from-foreground via-foreground to-foreground/60 bg-clip-text text-3xl font-medium leading-tight tracking-tight text-transparent">
-              Dois irmãos.
-              <br />
-              <span className="italic text-primary">Uma ambição.</span>
-            </h2>
-            <p className="max-w-md text-sm text-muted-foreground">
-              A Sustain Remodelações nasce da vontade de transformar casas com
-              rigor técnico, materiais de qualidade e uma experiência de
-              orçamentação mais próxima e transparente.
-            </p>
-          </div>
-          <div className="relative">
-            <div
-              aria-hidden
-              className="absolute -inset-2 rounded-2xl bg-primary/10 blur-2xl"
-            />
-            <div className="relative overflow-hidden rounded-xl ring-1 ring-foreground/10 shadow-[0_30px_60px_-30px_oklch(0_0_0/0.4)]">
-              <Image
-                src="/fundadores.png"
-                alt="Fundadores da Sustain Remodelações"
-                width={1200}
-                height={640}
-                className="h-auto w-full object-cover"
-                priority
-              />
-            </div>
-          </div>
-        </div>
       </section>
     </div>
   );

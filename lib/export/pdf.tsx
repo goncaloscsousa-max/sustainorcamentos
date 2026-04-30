@@ -301,10 +301,16 @@ export function OrcamentoPDF({ data }: { data: OrcamentoExportData }) {
         {/* Cabeçalho */}
         <View style={styles.header}>
           <Text style={styles.brand}>{empresa.nome}</Text>
-          <Text style={styles.slogan}>{empresa.slogan}</Text>
-          <Text style={styles.contactLine}>
-            {empresa.email}  |  {empresa.telefone}  |  {empresa.website}
-          </Text>
+          {empresa.slogan ? (
+            <Text style={styles.slogan}>{empresa.slogan}</Text>
+          ) : null}
+          {[empresa.email, empresa.telefone, empresa.website].filter(Boolean).length > 0 ? (
+            <Text style={styles.contactLine}>
+              {[empresa.email, empresa.telefone, empresa.website]
+                .filter(Boolean)
+                .join("  |  ")}
+            </Text>
+          ) : null}
         </View>
 
         {/* Bloco identificação */}
@@ -451,7 +457,7 @@ export function OrcamentoPDF({ data }: { data: OrcamentoExportData }) {
         <View style={styles.signaturesRow} wrap={false}>
           <View style={styles.signatureBox}>
             <View style={styles.signatureLine} />
-            <Text style={styles.signatureLabel}>Pela Sustain Remodelações</Text>
+            <Text style={styles.signatureLabel}>Pela {empresa.nome}</Text>
           </View>
           <View style={styles.signatureBox}>
             <View style={styles.signatureLine} />
@@ -463,11 +469,19 @@ export function OrcamentoPDF({ data }: { data: OrcamentoExportData }) {
         {/* Rodapé */}
         <View style={styles.footer} fixed>
           <Text>
-            {empresa.nome}  |  {empresa.email}  |  {empresa.telefone}
+            {[empresa.nome, empresa.email, empresa.telefone]
+              .filter(Boolean)
+              .join("  |  ")}
           </Text>
           <Text>
-            {empresa.morada}, {empresa.codigoPostal} {empresa.localidade}
-            {"  |  "}NIF: {empresa.nif}
+            {[
+              [empresa.morada, [empresa.codigoPostal, empresa.localidade].filter(Boolean).join(" ")]
+                .filter(Boolean)
+                .join(", "),
+              empresa.nif ? `NIF: ${empresa.nif}` : "",
+            ]
+              .filter(Boolean)
+              .join("  |  ")}
           </Text>
         </View>
         <Text

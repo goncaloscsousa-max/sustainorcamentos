@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { getBranding } from "@/lib/branding/config";
+
 import { anthropic, DEFAULT_MODEL, estimarCustoCents } from "./client";
 import { SYSTEM_SUGESTAO_PRECO } from "./prompts/sugestao-preco";
 
@@ -52,10 +54,11 @@ export async function sugerirPreco(
       : "") +
     `\nDevolve o JSON com o preço por ${input.unidade}.`;
 
+  const empresa = getBranding().companyLegalName;
   const response = await client.messages.create({
     model: DEFAULT_MODEL,
     max_tokens: 500,
-    system: SYSTEM_SUGESTAO_PRECO,
+    system: SYSTEM_SUGESTAO_PRECO.replaceAll("__EMPRESA__", empresa),
     messages: [{ role: "user", content: userText }],
   });
 

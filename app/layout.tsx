@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { getBranding } from "@/lib/branding/config";
 
-export const metadata: Metadata = {
-  title: "Sustain Orçamentos",
-  description:
-    "Plataforma de apoio à orçamentação da Sustain Remodelações.",
-};
+export function generateMetadata(): Metadata {
+  const b = getBranding();
+  return {
+    title: b.brandName,
+    description: `Plataforma de apoio à orçamentação — ${b.companyLegalName}.`,
+  };
+}
 
 export default function RootLayout({
   children,

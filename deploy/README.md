@@ -116,7 +116,19 @@ DATABASE_PATH=/srv/sustain-orcamentos/shared/data/sustain.db
 UPLOADS_ROOT=/srv/sustain-orcamentos/shared/uploads
 BACKUP_DIR=/srv/sustain-orcamentos/shared/backups
 ANTHROPIC_API_KEY=<key-NOVA-de-produção-revogar-a-de-dev>
-NIF_SUSTAIN=
+
+# --- Branding por instância (cada cliente preenche o seu) ---
+BRAND_NAME=<ex.: "Lavra Orçamentos">
+BRAND_TAGLINE=<opcional, ex.: "Construções com rigor">
+COMPANY_LEGAL_NAME=<nome legal completo, ex.: "Lavra Construção, Lda.">
+COMPANY_PDF_SLOGAN=<opcional, slogan do PDF>
+COMPANY_NIF=
+COMPANY_EMAIL=
+COMPANY_PHONE=
+COMPANY_WEBSITE=
+COMPANY_ADDRESS=
+COMPANY_POSTAL_CODE=
+COMPANY_LOCALITY=
 ```
 
 > **CRÍTICO.** O `AUTH_SECRET` e a `ANTHROPIC_API_KEY` em produção têm de ser **diferentes** dos de dev. Se a key de dev foi exposta a alguém, **revoga-a na consola Anthropic antes de continuar**.

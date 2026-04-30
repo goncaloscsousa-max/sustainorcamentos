@@ -7,13 +7,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getBranding } from "@/lib/branding/config";
 import { LoginForm } from "./login-form";
 
-export const metadata: Metadata = {
-  title: "Entrar — Sustain Orçamentos",
-};
+export function generateMetadata(): Metadata {
+  const b = getBranding();
+  return { title: `Entrar — ${b.brandName}` };
+}
 
 export default function LoginPage() {
+  const { brandName, tagline } = getBranding();
   return (
     <Card className="w-full max-w-sm border-border/60 bg-card/70 shadow-2xl backdrop-blur-xl">
       <CardHeader className="text-center">
@@ -22,14 +25,14 @@ export default function LoginPage() {
             aria-hidden
             className="inline-block size-2 rounded-full bg-primary shadow-[0_0_18px_4px_oklch(0.62_0.23_25/0.55)]"
           />
-          <span>Sustain</span>
+          <span>{brandName}</span>
         </div>
         <CardTitle className="text-2xl font-medium tracking-tight">
-          Orçamentos
+          Entrar
         </CardTitle>
-        <CardDescription className="italic">
-          Transforme o seu espaço. Transforme a sua vida.
-        </CardDescription>
+        {tagline ? (
+          <CardDescription className="italic">{tagline}</CardDescription>
+        ) : null}
       </CardHeader>
       <CardContent>
         <LoginForm />

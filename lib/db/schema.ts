@@ -121,7 +121,7 @@ export const obras = sqliteTable(
 );
 
 /* ---------------------------------------------------------------------- */
-/*                          TABELA DE PREÇOS (SUSTAIN)                    */
+/*                              TABELA DE PREÇOS                          */
 /* ---------------------------------------------------------------------- */
 
 export const tabelaPrecos = sqliteTable("tabela_precos", {

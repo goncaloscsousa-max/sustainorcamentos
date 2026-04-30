@@ -689,7 +689,7 @@ export function ObraForm({
       {/* ============================================================ */}
       <Section
         title="Datas e notas internas"
-        subtitle="Apenas para uso da Sustain — não vai à IA."
+        subtitle="Apenas para uso interno — não vai à IA."
       >
         <div className="grid gap-5 sm:grid-cols-3">
           <DateField
@@ -722,7 +722,7 @@ export function ObraForm({
             rows={3}
             value={vals.notas}
             onChange={setVal("notas")}
-            placeholder="Observações privadas da Sustain (não saem da plataforma)."
+            placeholder="Observações privadas internas (não saem da plataforma)."
           />
         </div>
       </Section>
